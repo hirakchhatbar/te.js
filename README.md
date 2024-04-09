@@ -19,6 +19,7 @@ const tejas = new Tejas({
   checklist: [],
   port: 1403
 });
+
 tejas.takeOff();
 
 ```
