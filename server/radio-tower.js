@@ -22,3 +22,5 @@ class RadioTower {
     this.tejas.engine.on('close', cb);
   }
 }
+
+export default RadioTower;

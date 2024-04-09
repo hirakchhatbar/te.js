@@ -1,15 +1,12 @@
+import {router} from './server/routing/router.js';
 import Tejas from './server/server.js';
 
-const a = () => {
-  console.log('a');
-}
-
-const b = () => {
-  console.log('b');
-}
+router.get('/abc', (req, res) => {
+  res.write('Hello');
+  res.end();
+});
 
 const tejas = new Tejas({
-  checklist: [a, b],
-  port: 1403
+  mongoDB: true,
 });
 tejas.takeoff();
