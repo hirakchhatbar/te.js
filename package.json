@@ -1,0 +1,16 @@
+{
+  "name": "te.js",
+  "version": "1.0.0",
+  "description": "A nodejs framework",
+  "type": "module",
+  "main": "te.js",
+  "scripts": {
+    "start": "node te.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Hirak",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.12.5"
+  }
+}
