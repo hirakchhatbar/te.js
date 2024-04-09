@@ -1,5 +1,8 @@
 # te.js
+
 This is a Node.js framework to build robust server applications. Project is under development. For suggestions, add Issues.
+
+For suggestions and feature requests, create [@issue](https://github.com/hirakchhatbar/te.js/issues)
 
 ## Installation
 
@@ -19,11 +22,9 @@ const tejas = new Tejas({
   checklist: [],
   port: 1403
 });
-
 tejas.takeOff();
 
 ```
 ## Authors
 
 - [@hirakchhatbar](https://www.github.com/hirakchhatbar)
-
