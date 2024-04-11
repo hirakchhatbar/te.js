@@ -5,6 +5,8 @@ class TargetRegistry {
     }
 
     TargetRegistry.instance = this;
+
+    // TODO - Add a default target
     this.targets = [];
   }
 
@@ -12,6 +14,7 @@ class TargetRegistry {
    * @param {Array || Object} targets
    */
   register(targets) {
+    console.log(targets);
     if (Array.isArray(targets)) {
       this.targets.push(...targets);
     } else {
@@ -20,7 +23,7 @@ class TargetRegistry {
   }
 
   aim(req) {
-    const endpoint = req.url;
+    const endpoint = req.url.split("?")[0];
     const method = req.method;
 
     return this.targets.find((target) => {

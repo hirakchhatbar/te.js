@@ -1,13 +1,10 @@
-"use strict";
+'use strict';
 
-import fresh from "./fresh.js";
-import accepts from "accepts";
-import { isIP } from "net";
-import http from "http";
-
-const parseRange = require("range-parser");
-const parse = require("parseurl");
-const proxyaddr = require("proxy-addr");
+import accepts from 'accepts';
+import http from 'http';
+import {isIP} from 'net';
+import bodyParser from './../utils/body-parser.js';
+import fresh from './../utils/fresh.js';
 
 /**
  * Request prototype.
@@ -15,15 +12,8 @@ const proxyaddr = require("proxy-addr");
  */
 
 const req = Object.create(http.IncomingMessage.prototype);
-
 /**
- * Module exports.
- * @public
- */
-
-export default req;
-
-/**
+ * Using method from Express.js for easy migration
  * Return request header.
  *
  * The `Referrer` header field is special-cased,
@@ -46,19 +36,18 @@ export default req;
  * @return {String}
  * @public
  */
-
 req.get = req.header = function header(name) {
   if (!name) {
-    throw new Error("Name of the header is required");
+    throw new Error('Name of the header is required');
   }
 
-  if (typeof name !== "string") {
-    throw new TypeError("Name of the header must be a string");
+  if (typeof name !== 'string') {
+    throw new TypeError('Name of the header must be a string');
   }
 
   switch (name.toLowerCase()) {
-    case "referer":
-    case "referrer":
+    case 'referer':
+    case 'referrer':
       return this.headers.referrer || this.headers.referer;
     default:
       return this.headers[name.toLowerCase()];
@@ -111,7 +100,7 @@ req.get = req.header = function header(name) {
  * @public
  */
 
-req.accepts = function () {
+req.accepts = function() {
   const accept = accepts(this);
   return accept.types.apply(accept, arguments);
 };
@@ -124,7 +113,7 @@ req.accepts = function () {
  * @public
  */
 
-req.acceptsEncodings = function () {
+req.acceptsEncodings = function() {
   const accept = accepts(this);
   return accept.encodings.apply(accept, arguments);
 };
@@ -138,7 +127,7 @@ req.acceptsEncodings = function () {
  * @public
  */
 
-req.acceptsCharsets = function () {
+req.acceptsCharsets = function() {
   const accept = accepts(this);
   return accept.charsets.apply(accept, arguments);
 };
@@ -151,40 +140,9 @@ req.acceptsCharsets = function () {
  * @public
  */
 
-req.acceptsLanguages = function () {
+req.acceptsLanguages = function() {
   const accept = accepts(this);
   return accept.languages.apply(accept, arguments);
-};
-
-/**
- * Parse Range header field, capping to the given `size`.
- *
- * Unspecified ranges such as "0-" require knowledge of your resource length. In
- * the case of a byte range this is of course the total number of bytes. If the
- * Range header field is not given `undefined` is returned, `-1` when unsatisfiable,
- * and `-2` when syntactically invalid.
- *
- * When ranges are returned, the array has a "type" property which is the type of
- * range that is required (most commonly, "bytes"). Each array element is an object
- * with a "start" and "end" property for the portion of the range.
- *
- * The "combine" option can be set to `true` and overlapping & adjacent ranges
- * will be combined into a single range.
- *
- * NOTE: remember that ranges are inclusive, so for example "Range: users=0-3"
- * should respond with 4 users when available, not 3.
- *
- * @param {number} size
- * @param {object} [options]
- * @param {boolean} [options.combine=false]
- * @return {number|array}
- * @public
- */
-
-req.range = function range(size, options) {
-  const range = this.get("Range");
-  if (!range) return;
-  return parseRange(size, range, options);
 };
 
 /**
@@ -230,9 +188,9 @@ req.param = function param(name, defaultValue) {
  * @public
  */
 
-defineGetter(req, "protocol", function protocol() {
-  const proto = this.connection.encrypted ? "https" : "http";
-  const trust = this.app.get("trust proxy fn");
+defineGetter(req, 'protocol', function protocol() {
+  const proto = this.connection.encrypted ? 'https' : 'http';
+  const trust = this.app.get('trust proxy fn');
 
   if (!trust(this.connection.remoteAddress, 0)) {
     return proto;
@@ -240,8 +198,8 @@ defineGetter(req, "protocol", function protocol() {
 
   // Note: X-Forwarded-Proto is normally only ever a
   //       single value, but this is to be safe.
-  const header = this.get("X-Forwarded-Proto") || proto;
-  const index = header.indexOf(",");
+  const header = this.get('X-Forwarded-Proto') || proto;
+  const index = header.indexOf(',');
 
   return index !== -1 ? header.substring(0, index).trim() : header.trim();
 });
@@ -255,46 +213,8 @@ defineGetter(req, "protocol", function protocol() {
  * @public
  */
 
-defineGetter(req, "secure", function secure() {
-  return this.protocol === "https";
-});
-
-/**
- * Return the remote address from the trusted proxy.
- *
- * This is the remote address on the socket unless
- * "trust proxy" is set.
- *
- * @return {String}
- * @public
- */
-
-defineGetter(req, "ip", function ip() {
-  const trust = this.app.get("trust proxy fn");
-  return proxyaddr(this, trust);
-});
-
-/**
- * When "trust proxy" is set, trusted proxy addresses + client.
- *
- * For example if the value were "client, proxy1, proxy2"
- * you would receive the array `["client", "proxy1", "proxy2"]`
- * where "proxy2" is the furthest down-stream and "proxy1" and
- * "proxy2" were trusted.
- *
- * @return {Array}
- * @public
- */
-
-defineGetter(req, "ips", function ips() {
-  const trust = this.app.get("trust proxy fn");
-  const addrs = proxyaddr.all(this, trust);
-
-  // reverse the order (to farthest -> closest)
-  // and remove socket address
-  addrs.reverse().pop();
-
-  return addrs;
+defineGetter(req, 'secure', function secure() {
+  return this.protocol === 'https';
 });
 
 /**
@@ -312,28 +232,17 @@ defineGetter(req, "ips", function ips() {
  * @public
  */
 
-defineGetter(req, "subdomains", function subdomains() {
+defineGetter(req, 'subdomains', function subdomains() {
   const hostname = this.hostname;
 
   if (!hostname) return [];
 
-  const offset = this.app.get("subdomain offset");
+  const offset = this.app.get('subdomain offset');
   const subdomains = !isIP(hostname)
-    ? hostname.split(".").reverse()
-    : [hostname];
+      ? hostname.split('.').reverse()
+      : [hostname];
 
   return subdomains.slice(offset);
-});
-
-/**
- * Short-hand for `url.parse(req.url).pathname`.
- *
- * @return {String}
- * @public
- */
-
-defineGetter(req, "path", function path() {
-  return parse(this).pathname;
 });
 
 /**
@@ -347,30 +256,28 @@ defineGetter(req, "path", function path() {
  * @public
  */
 
-defineGetter(req, "hostname", function hostname() {
-  const trust = this.app.get("trust proxy fn");
-  let host = this.get("X-Forwarded-Host");
+defineGetter(req, 'hostname', function hostname() {
+  const trust = this.app.get('trust proxy fn');
+  let host = this.get('X-Forwarded-Host');
 
   if (!host || !trust(this.connection.remoteAddress, 0)) {
-    host = this.get("Host");
-  } else if (host.indexOf(",") !== -1) {
+    host = this.get('Host');
+  } else if (host.indexOf(',') !== -1) {
     // Note: X-Forwarded-Host is normally only ever a
     //       single value, but this is to be safe.
-    host = host.substring(0, host.indexOf(",")).trimRight();
+    host = host.substring(0, host.indexOf(',')).trimRight();
   }
 
   if (!host) return;
 
   // IPv6 literal support
-  const offset = host[0] === "[" ? host.indexOf("]") + 1 : 0;
-  const index = host.indexOf(":", offset);
+  const offset = host[0] === '[' ? host.indexOf(']') + 1 : 0;
+  const index = host.indexOf(':', offset);
 
   return index !== -1 ? host.substring(0, index) : host;
 });
 
-// TODO: change req.host to return host in next major
-
-defineGetter(req, "host", function host() {
+defineGetter(req, 'host', function host() {
   return this.host;
 });
 
@@ -383,19 +290,19 @@ defineGetter(req, "host", function host() {
  * @public
  */
 
-defineGetter(req, "fresh", function () {
+defineGetter(req, 'fresh', function() {
   const method = this.method;
   const res = this.res;
   const status = res.statusCode;
 
   // GET or HEAD for weak freshness validation only
-  if ("GET" !== method && "HEAD" !== method) return false;
+  if ('GET' !== method && 'HEAD' !== method) return false;
 
   // 2xx or 304 as per rfc2616 14.26
   if ((status >= 200 && status < 300) || 304 === status) {
     return fresh(this.headers, {
-      etag: res.get("ETag"),
-      "last-modified": res.get("Last-Modified"),
+      etag: res.get('ETag'),
+      'last-modified': res.get('Last-Modified'),
     });
   }
 
@@ -411,7 +318,7 @@ defineGetter(req, "fresh", function () {
  * @public
  */
 
-defineGetter(req, "stale", function stale() {
+defineGetter(req, 'stale', function stale() {
   return !this.fresh;
 });
 
@@ -422,9 +329,9 @@ defineGetter(req, "stale", function stale() {
  * @public
  */
 
-defineGetter(req, "xhr", function xhr() {
-  const val = this.get("X-Requested-With") || "";
-  return val.toLowerCase() === "xmlhttprequest";
+defineGetter(req, 'xhr', function xhr() {
+  const val = this.get('X-Requested-With') || '';
+  return val.toLowerCase() === 'xmlhttprequest';
 });
 
 /**
@@ -442,3 +349,29 @@ function defineGetter(obj, name, getter) {
     get: getter,
   });
 }
+
+async function generatePayload(req) {
+  const obj = {};
+
+  const searchParams = new URLSearchParams(req.url.split('?')[1]);
+  for (const [key, value] of searchParams) {
+    obj[key] = value;
+  }
+
+  const body = await bodyParser(req);
+  if (body)
+    Object.assign(obj, body);
+  req.payload = obj;
+}
+
+/**
+ * Module exports.
+ * @public
+ */
+
+const generateRequest = async (defaultReq) => {
+  await generatePayload(defaultReq);
+  return Object.assign(Object.create(req), defaultReq);
+};
+
+export default generateRequest;

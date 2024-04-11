@@ -1,25 +1,42 @@
-import TargetRegistry from "./registry.js";
+import tejRequest from './../request.js';
+import TargetRegistry from './registry.js';
+
 const targetRegistry = new TargetRegistry();
 
-const handler = (req, res) => {
-    const target = targetRegistry.aim(req);
+const handler = async (defaultReq, res) => {
+  let req;
 
-    if (target) {
-        target.shoot(req, res);
-    } else {
-        if (req.url === '/favicon.ico') {
-            res.writeHead(200, {'Content-Type': 'image/x-icon'});
-            res.end();
-        } else if (req.url === '/') {
-            res.writeHead(200, {'Content-Type': 'text/html'});
-            res.write('<h1>Tejas</h1>');
-            res.end();
-        } else {
-            res.statusCode = 404;
-            res.write('Not found');
-            res.end();
-        }
+  try {
+    req = await tejRequest(defaultReq);
+  } catch (e) {
+    req = defaultReq;
+    console.error(e.message);
+  }
+
+  const target = targetRegistry.aim(req);
+
+  if (target) {
+    const middlewares = target.middlewares;
+    for (let i = 0; i < middlewares.length; i++) {
+      await middlewares[i](req, res);
     }
+
+    await target.shoot(req, res);
+
+  } else {
+    if (req.url === '/favicon.ico') {
+      res.writeHead(200, {'Content-Type': 'image/x-icon'});
+      res.end();
+    } else if (req.url === '/') {
+      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.write('<h1>Tejas</h1>');
+      res.end();
+    } else {
+      res.statusCode = 404;
+      res.write('Not found');
+      res.end();
+    }
+  }
 };
 
 export default handler;

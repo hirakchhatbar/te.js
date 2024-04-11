@@ -1,38 +1,88 @@
+import TargetRegistry from './registry.js';
+
 class Target {
   constructor() {
     this.targets = [];
+    this.targetRegistry = new TargetRegistry();
   }
 
-  get(endpoint, shoot) {
+  get() {
+    const endpoint = arguments[0];
+    const shoot = arguments[arguments.length - 1];
+    const middlewares = Array.prototype.slice.call(arguments, 1,
+        arguments.length - 1);
+
     this.targets.push({
-      method: "GET",
+      method: 'GET',
       endpoint,
+      middlewares,
       shoot,
     });
   }
 
-  post(endpoint, shoot) {
+  post() {
+    const endpoint = arguments[0];
+    const shoot = arguments[arguments.length - 1];
+    const middlewares = Array.prototype.slice.call(arguments, 1,
+        arguments.length - 1);
+
     this.targets.push({
-      method: "POST",
+      method: 'POST',
       endpoint,
+      middlewares,
       shoot,
     });
   }
 
-  put(endpoint, shoot) {
+  put() {
+    const endpoint = arguments[0];
+    const shoot = arguments[arguments.length - 1];
+    const middlewares = Array.prototype.slice.call(arguments, 1,
+        arguments.length - 1);
+
     this.targets.push({
-      method: "PUT",
+      method: 'PUT',
       endpoint,
+      middlewares,
       shoot,
     });
   }
 
-  delete(endpoint, shoot) {
+  delete() {
+    const endpoint = arguments[0];
+    const shoot = arguments[arguments.length - 1];
+    const middlewares = Array.prototype.slice.call(arguments, 1,
+        arguments.length - 1);
+
     this.targets.push({
-      method: "DELETE",
+      method: 'GET',
       endpoint,
+      middlewares,
       shoot,
     });
+  }
+
+  use() {
+    const endpoint = arguments[0];
+    const router = arguments[arguments.length - 1];
+    console.log(endpoint, router);
+    const middlewares = Array.prototype.slice.call(arguments, 1,
+        arguments.length - 1);
+
+    return
+
+    if (router instanceof Target) {
+      console.log("Registering a bunch of targets for", endpoint)
+      this.targetRegistry.register(router.targets.map((target) => {
+        return {
+          ...target,
+          endpoint: `${endpoint}${target.endpoint}`,
+          middlewares: [...middlewares, ...target.middlewares],
+        };
+      }));
+    } else {
+      console.log('targets NOT instanceof this');
+    }
   }
 }
 

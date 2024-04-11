@@ -3,3 +3,9 @@
 
 package-lock.json
 .env*
+
+#Ignore files and folders from the example folder
+example/.env
+example/node_modules
+example/package-lock.json
+example/.idea
