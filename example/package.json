@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "te.js": "file:../te.js",
+    "te.js": "file:..",
     "tej-env": "^1.0.2"
   }
 }

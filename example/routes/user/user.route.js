@@ -1,8 +1,13 @@
-import {router} from "te.js";
+import {Target} from 'te.js';
 
-router.get('/', (req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('user route');
+const target = new Target();
+
+const registerMiddleware = (req, res) => {
+  console.log("Register user middleware");
+}
+
+target.register('POST', '/register', registerMiddleware, (req, res) => {
+  res.writeHead(200, {'Content-Type': 'text/html'});
+  res.write('Hello User');
+  res.end();
 });
-
-export default router;
