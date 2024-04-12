@@ -1,5 +1,5 @@
-import Ammo from '../ammo.js';
-import TargetRegistry from './registry.js';
+import Ammo from "../ammo.js";
+import TargetRegistry from "./registry.js";
 
 const targetRegistry = new TargetRegistry();
 
