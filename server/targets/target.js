@@ -1,9 +1,6 @@
 import TargetRegistry from "./registry.js";
 const targetRegistry = new TargetRegistry();
 
-const methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
-const isMethodAllowed = (method) => methods.includes(method.toUpperCase());
-
 const isEndpointValid = (endpoint) => {
   if (typeof endpoint !== "string") return false;
   if (endpoint.length === 0) return false;
@@ -28,19 +25,17 @@ class Target {
   }
 
   register() {
-    const method = arguments[0];
-    const endpoint = arguments[1];
+    if (!arguments) return;
+    const endpoint = arguments[0];
     const shoot = arguments[arguments.length - 1];
-    const middlewares = Array.from(arguments).slice(2, arguments.length - 1);
+    const middlewares = Array.from(arguments).slice(1, arguments.length - 1);
 
-    if (!isMethodAllowed(method)) return;
     if (!isEndpointValid(endpoint)) return;
     if (!isShootValid(shoot)) return;
 
     const validMiddlewares = middlewares.filter(isMiddlewareValid);
 
     targetRegistry.targets.push({
-      method,
       endpoint: this.base + endpoint,
       middlewares: this.targetMiddlewares.concat(validMiddlewares),
       shoot,

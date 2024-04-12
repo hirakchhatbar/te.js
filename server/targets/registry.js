@@ -32,14 +32,9 @@ class TargetRegistry {
     }
   }
 
-  aim(req) {
-    const endpoint = req.url.split("?")[0];
-    const method = req.method;
-
-    console.log({endpoint, method});
-
+  aim(endpoint) {
     return this.targets.find((target) => {
-      return target.endpoint === endpoint && target.method === method;
+      return target.endpoint === endpoint;
     });
   }
 }
