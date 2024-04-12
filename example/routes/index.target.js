@@ -1,7 +1,6 @@
 import {Target} from 'te.js';
+const target = new Target("/user");
 
-const target = new Target();
-
-target.register('/hello.js', (ammo) => {
-    ammo.send("Hello World");
+target.register('/hello', (ammo) => {
+    ammo.dispatch({message: 'Hello World!'});
 });

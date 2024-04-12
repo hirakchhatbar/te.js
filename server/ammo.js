@@ -5,6 +5,7 @@ class Ammo {
   constructor(req, res) {
     this.req = req;
     this.res = res;
+    this.target = null;
 
     this.payload = {};
   }
@@ -22,7 +23,7 @@ class Ammo {
     this.payload = obj;
   }
 
-  send() {
+  dispatch() {
     let data = arguments[0];
     if (arguments.length > 1) {
       const statusCode = arguments[0];
