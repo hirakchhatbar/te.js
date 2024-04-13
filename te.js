@@ -1,11 +1,11 @@
-import { createServer } from "node:http";
+import { createServer } from 'node:http';
 
-import TejLogger from "tej-logger";
-import ConfigController from "./utils/config-controller.js";
+import TejLogger from 'tej-logger';
+import ConfigController from './utils/config-controller.js';
 
-import TargetRegistry from "./server/targets/registry.js";
-import Target from "./server/targets/target.js";
-import targetHandler from "./server/targets/handler.js";
+import TargetRegistry from './server/targets/registry.js';
+import Target from './server/targets/target.js';
+import targetHandler from './server/targets/handler.js';
 
 import requestLogger from './utils/request-logger.js';
 
@@ -21,7 +21,7 @@ class Tejas {
     if (Tejas.instance) return Tejas.instance;
 
     this.config = new ConfigController(options).generate();
-    this.logger = new TejLogger("Tejas");
+    this.logger = new TejLogger('Tejas');
     this.targetRegistry = new TargetRegistry();
     this.checklist = [];
 
@@ -41,9 +41,9 @@ class Tejas {
       this.logger.info(`Tejas took off from port ${this.config.port}`);
     });
 
-    this.engine.on("listening", () => {
+    this.engine.on('listening', () => {
       for (const next of this.checklist) {
-        if (typeof next === "function") next();
+        if (typeof next === 'function') next();
         else
           this.logger.error(
             `Checklist item ${next} is not a function. Skipping...`,
@@ -57,4 +57,4 @@ class Tejas {
   }
 }
 
-export {Tejas, Target};
+export { Tejas, Target };

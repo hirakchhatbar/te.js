@@ -1,12 +1,12 @@
-import bodyParser from "../../utils/body-parser.js";
+import bodyParser from '../../utils/body-parser.js';
 
 function hostname(req) {
-  let host = req.headers["X-Forwarded-Host"];
+  let host = req.headers['X-Forwarded-Host'];
 
   if (!host) {
     host = req.headers.host;
   } else if (host.indexOf(',') !== -1) {
-    host = host.substring(0, host.indexOf(',')).trimRight()
+    host = host.substring(0, host.indexOf(',')).trimRight();
   }
 
   return host;
@@ -15,7 +15,7 @@ function hostname(req) {
 async function generatePayload(req) {
   const obj = {};
 
-  const searchParams = new URLSearchParams(req.url.split("?")[1]);
+  const searchParams = new URLSearchParams(req.url.split('?')[1]);
   for (const [key, value] of searchParams) {
     obj[key] = value;
   }
@@ -26,10 +26,10 @@ async function generatePayload(req) {
 }
 
 function protocol(req) {
-  const proto = req.connection.encrypted ? "https" : "http";
+  const proto = req.connection.encrypted ? 'https' : 'http';
 
-  const header = req.headers["X-Forwarded-Proto"] || proto;
-  const index = header.indexOf(",");
+  const header = req.headers['X-Forwarded-Proto'] || proto;
+  const index = header.indexOf(',');
 
   return index !== -1 ? header.substring(0, index).trim() : header.trim();
 }
@@ -37,7 +37,7 @@ function protocol(req) {
 const enhance = async (ammo) => {
   const req = ammo.req;
 
-  ammo.ip = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+  ammo.ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   ammo.headers = req.headers;
   ammo.payload = await generatePayload(req);
   ammo.method = req.method;
@@ -45,7 +45,7 @@ const enhance = async (ammo) => {
   ammo.protocol = protocol(req);
   ammo.hostname = hostname(req);
   ammo.path = req.url;
-  ammo.endpoint = req.url.split("?")[0];
+  ammo.endpoint = req.url.split('?')[0];
 
   ammo.fullURL = `${ammo.protocol}://${ammo.hostname}/${ammo.path}`;
 };

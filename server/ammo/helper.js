@@ -1,9 +1,9 @@
-import status from "statuses";
+import status from 'statuses';
 
 const formattedData = (data) => {
-  if (typeof data === "object") return JSON.stringify(data);
-  if (typeof data === "string") return data;
-  if (typeof data === "number") return status[data];
+  if (typeof data === 'object') return JSON.stringify(data);
+  if (typeof data === 'string') return data;
+  if (typeof data === 'number') return status[data];
   return data;
 };
 
@@ -12,14 +12,14 @@ const statusAndData = (args) => {
     return {
       statusCode: 204,
       data: status(204),
-      contentType: "text/plain",
+      contentType: 'text/plain',
     };
 
-  if (args.length === 1 && typeof args[0] === "number")
+  if (args.length === 1 && typeof args[0] === 'number')
     return {
       statusCode: args[0],
       data: status(args[0]),
-      contentType: "text/plain",
+      contentType: 'text/plain',
     };
 
   let statusCode = 200;
@@ -33,20 +33,20 @@ const statusAndData = (args) => {
   return {
     statusCode,
     data: formattedData(data),
-    contentType: contentType(data)
+    contentType: contentType(data),
   };
 };
 
 const contentType = (data) => {
   switch (typeof data) {
-    case "object":
-      return "application/json";
-    case "string":
-      return "text/html";
-    case "number":
-      return "text/plain";
+    case 'object':
+      return 'application/json';
+    case 'string':
+      return 'text/html';
+    case 'number':
+      return 'text/plain';
     default:
-      return "text/plain";
+      return 'text/plain';
   }
 };
 

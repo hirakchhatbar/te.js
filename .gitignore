@@ -1,5 +1,6 @@
 /node_modules
 /.idea
+/.husky
 
 package-lock.json
 .env*
