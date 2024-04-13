@@ -7,6 +7,11 @@ class Ammo {
     this.res = res;
 
     this.payload = {};
+    this.headers = {};
+  }
+
+  async generateHeaders() {
+    this.headers = this.req.headers;
   }
 
   async generatePayload() {
