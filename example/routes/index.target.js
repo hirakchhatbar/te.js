@@ -1,8 +1,11 @@
-import {Target} from 'te.js';
+import { Target } from "te.js";
+
 const target = new Target();
 
 target.register('/hello', (ammo) => {
-    ammo.dispatch({
-        message: 'Hello World'
-    });
+
+  ammo.dispatch({
+    status: 200,
+    body: 'Hello, World!',
+  });
 });

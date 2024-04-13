@@ -8,6 +8,20 @@ const formattedData = (data) => {
 };
 
 const statusAndData = (args) => {
+  if (!args || args.length === 0)
+    return {
+      statusCode: 204,
+      data: status(204),
+      contentType: "text/plain",
+    };
+
+  if (args.length === 1 && typeof args[0] === "number")
+    return {
+      statusCode: args[0],
+      data: status(args[0]),
+      contentType: "text/plain",
+    };
+
   let statusCode = 200;
   let data = args[0];
   if (args.length > 1) {

@@ -1,11 +1,10 @@
 import bodyParser from "../utils/body-parser.js";
-import { contentType, statusAndData } from "../utils/ammo-helper.js";
+import { statusAndData } from "../utils/ammo-helper.js";
 
 class Ammo {
   constructor(req, res) {
     this.req = req;
     this.res = res;
-    this.target = null;
 
     this.payload = {};
   }
@@ -28,8 +27,16 @@ class Ammo {
     const contentTypeHeader = { "Content-Type": contentType };
 
     this.res.writeHead(statusCode, contentTypeHeader);
-    this.res.write(data);
+    this.res.write(data ?? "");
     this.res.end();
+  }
+
+  notFound() {
+    this.dispatch(404);
+  }
+
+  notAllowed() {
+    this.dispatch(405);
   }
 }
 

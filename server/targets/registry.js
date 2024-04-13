@@ -32,9 +32,9 @@ class TargetRegistry {
     }
   }
 
-  aim(endpoint) {
+  aim(method, endpoint) {
     return this.targets.find((target) => {
-      return target.endpoint === endpoint;
+      return target.endpoint === endpoint && target.allowedMethods.includes(method);
     });
   }
 }

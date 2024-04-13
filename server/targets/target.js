@@ -1,4 +1,5 @@
 import TargetRegistry from "./registry.js";
+
 const targetRegistry = new TargetRegistry();
 
 const isEndpointValid = (endpoint) => {
@@ -11,10 +12,17 @@ const isShootValid = (shoot) => typeof shoot === "function";
 
 const isMiddlewareValid = (middleware) => typeof middleware === "function";
 
+const validMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+
 class Target {
   constructor(base = "") {
     this.base = base;
     this.targetMiddlewares = [];
+  }
+
+  base(base) {
+    if (!base || !base.startsWith("/")) return;
+    this.base = base;
   }
 
   midair() {
@@ -25,10 +33,18 @@ class Target {
   }
 
   register() {
-    if (!arguments) return;
-    const endpoint = arguments[0];
-    const shoot = arguments[arguments.length - 1];
-    const middlewares = Array.from(arguments).slice(1, arguments.length - 1);
+    let allowedMethods = validMethods;
+    let args = arguments;
+    if (!args) return;
+
+    if (validMethods.includes(args[0])) {
+      allowedMethods = [args[0]];
+      args = arguments[1];
+    }
+
+    const endpoint = args[0];
+    const shoot = args[args.length - 1];
+    const middlewares = Array.from(args).slice(1, args.length - 1);
 
     if (!isEndpointValid(endpoint)) return;
     if (!isShootValid(shoot)) return;
@@ -36,11 +52,11 @@ class Target {
     const validMiddlewares = middlewares.filter(isMiddlewareValid);
 
     targetRegistry.targets.push({
+      allowedMethods: allowedMethods.length > 0 ? allowedMethods : validMethods,
       endpoint: this.base + endpoint,
       middlewares: this.targetMiddlewares.concat(validMiddlewares),
       shoot,
     });
   }
 }
-
 export default Target;

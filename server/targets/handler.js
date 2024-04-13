@@ -3,40 +3,44 @@ import TargetRegistry from "./registry.js";
 
 const targetRegistry = new TargetRegistry();
 
-const runMiddlewares = async (target, req, res) => {
+const executeChain = async (target, ammo) => {
+  // Write code to execute chain of middlewares and then final target.shoot() handler
+  let i = 0;
+
   const middlewares = targetRegistry.globalMiddlewares.concat(
-      target.middlewares,
+    target.middlewares,
   );
-  for (const middleware of middlewares) {
-    if (typeof middleware !== 'function') continue;
-    await middleware(req, res);
-  }
+
+  const next = async () => {
+    if (i < middlewares.length) {
+      await middlewares[i++](...ammo, next);
+    } else {
+      await target.shoot(ammo);
+    }
+  };
+
+  await next();
 };
 
 const handler = async (req, res) => {
-  const target = targetRegistry.aim(req.url.split('?')[0]);
+  const target = targetRegistry.aim(req.method, req.url.split("?")[0]);
   if (target) {
     const ammo = new Ammo(req, res);
     await ammo.generatePayload();
-    ammo.target = target;
-
-    await runMiddlewares(target, ammo.req, ammo.res);
-    await target.shoot(ammo);
-
+    await executeChain(target, ammo);
   } else {
-
-    if (req.url === '/') {
+    if (req.url === "/") {
       for (const middleware of targetRegistry.globalMiddlewares) {
-        if (typeof middleware !== 'function') continue;
+        if (typeof middleware !== "function") continue;
         await middleware(req, res);
       }
 
-      res.writeHead(200, {'Content-Type': 'text/html'});
-      res.write('<h1>Tejas is flying</h1>');
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.write("<h1>Tejas is flying</h1>");
       res.end();
     } else {
       res.statusCode = 404;
-      res.write('Not found');
+      res.write("Not found");
       res.end();
     }
   }
