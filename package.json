@@ -14,7 +14,9 @@
     "@types/node": "^20.12.5"
   },
   "dependencies": {
+    "ansi-colors": "^4.1.3",
+    "formidable": "^3.5.1",
     "statuses": "^2.0.1",
-    "formidable": "^3.5.1"
+    "tej-logger": "^1.2.0"
   }
 }

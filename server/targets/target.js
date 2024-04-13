@@ -1,27 +1,26 @@
-import TargetRegistry from "./registry.js";
+import isMiddlewareValid from '../../utils/middleware-validator.js';
+import TargetRegistry from './registry.js';
 
 const targetRegistry = new TargetRegistry();
 
 const isEndpointValid = (endpoint) => {
-  if (typeof endpoint !== "string") return false;
+  if (typeof endpoint !== 'string') return false;
   if (endpoint.length === 0) return false;
-  return endpoint[0] === "/";
+  return endpoint[0] === '/';
 };
 
-const isShootValid = (shoot) => typeof shoot === "function";
+const isShootValid = (shoot) => typeof shoot === 'function';
 
-const isMiddlewareValid = (middleware) => typeof middleware === "function";
-
-const validMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+const validMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 class Target {
-  constructor(base = "") {
+  constructor(base = '') {
     this.base = base;
     this.targetMiddlewares = [];
   }
 
   base(base) {
-    if (!base || !base.startsWith("/")) return;
+    if (!base || !base.startsWith('/')) return;
     this.base = base;
   }
 
@@ -59,4 +58,5 @@ class Target {
     });
   }
 }
+
 export default Target;

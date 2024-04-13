@@ -1,11 +1,13 @@
 import { createServer } from "node:http";
 
-import TejLogger from "./logger/index.js";
+import TejLogger from "tej-logger";
 import ConfigController from "./utils/config-controller.js";
 
 import TargetRegistry from "./server/targets/registry.js";
 import Target from "./server/targets/target.js";
 import targetHandler from "./server/targets/handler.js";
+
+import requestLogger from './utils/request-logger.js';
 
 class Tejas {
   /*
@@ -22,6 +24,8 @@ class Tejas {
     this.logger = new TejLogger("Tejas");
     this.targetRegistry = new TargetRegistry();
     this.checklist = [];
+
+    this.midair(requestLogger);
 
     Tejas.instance = this;
   }

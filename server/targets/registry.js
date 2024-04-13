@@ -1,3 +1,5 @@
+import isMiddlewareValid from './../../utils/middleware-validator.js';
+
 class TargetRegistry {
   constructor() {
     if (TargetRegistry.instance) {
@@ -15,9 +17,7 @@ class TargetRegistry {
     if (!arguments) return;
 
     const middlewares = [...arguments];
-    const validMiddlewares = middlewares.filter(
-      (middleware) => typeof middleware === "function",
-    );
+    const validMiddlewares = middlewares.filter(isMiddlewareValid);
     this.globalMiddlewares = this.globalMiddlewares.concat(validMiddlewares);
   }
 
@@ -34,7 +34,8 @@ class TargetRegistry {
 
   aim(method, endpoint) {
     return this.targets.find((target) => {
-      return target.endpoint === endpoint && target.allowedMethods.includes(method);
+      return target.endpoint === endpoint &&
+          target.allowedMethods.includes(method);
     });
   }
 }

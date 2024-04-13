@@ -5,7 +5,7 @@ const target = new Target();
 target.midair(auth);
 
 target.register('/hello', (ammo) => {
-  console.log(ammo.headers);
+
 
   ammo.dispatch({
     status: 200,
