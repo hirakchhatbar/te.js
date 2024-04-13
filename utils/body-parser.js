@@ -17,7 +17,7 @@ async function parseDataBasedOnContentType(req) {
 function parseJSONRequestBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', chunk => {
+    req.on('data', (chunk) => {
       body += chunk.toString();
     });
 
@@ -36,7 +36,7 @@ function parseUrlEncodedData(req) {
   return new Promise((resolve, reject) => {
     let body = '';
 
-    req.on('data', chunk => {
+    req.on('data', (chunk) => {
       body += chunk.toString();
     });
 
@@ -55,7 +55,7 @@ function parseMultiPartData(req) {
     let files;
     try {
       [fields, files] = await form.parse(req);
-      resolve({fields, files});
+      resolve({ fields, files });
     } catch (err) {
       reject(err);
     }
