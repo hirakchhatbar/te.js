@@ -75,4 +75,8 @@ const toStatusMessage = (code) => {
   return statuses[code];
 };
 
-export {toStatusCode, toStatusMessage};
+const isStatusCode = (code) => {
+  return statuses[code] !== undefined;
+}
+
+export {toStatusCode, toStatusMessage, isStatusCode};

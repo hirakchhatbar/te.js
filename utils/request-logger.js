@@ -1,10 +1,10 @@
 import ansi from 'ansi-colors';
-import TejLogger from '../../tej-logger/index.js';
+import TejLogger from 'tej-logger';
 
 const logger = new TejLogger('Tejas.Request');
 const {italic, bold, blue, white, bgGreen, bgRed, whiteBright} = ansi;
 
-async function logHttpRequest(ammo, next) {
+function logHttpRequest(ammo, next) {
   const startTime = new Date();
   ammo.res.on('finish', () => {
     const res = ammo.res;
@@ -21,7 +21,7 @@ async function logHttpRequest(ammo, next) {
     const nextLine = '\n';
 
     logger.log(
-        italic('Incoming request'),
+        italic(`Incoming request from ${ammo.ip}`),
         nextLine,
         method,
         endpoint,
