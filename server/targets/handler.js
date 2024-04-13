@@ -13,7 +13,8 @@ const executeChain = async (target, ammo) => {
 
   const next = async () => {
     if (i < middlewares.length) {
-      await middlewares[i++](...ammo, next);
+      await middlewares[i](...ammo, next);
+      i++;
     } else {
       await target.shoot(ammo);
     }
