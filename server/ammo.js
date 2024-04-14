@@ -1,11 +1,11 @@
-import { statusAndData } from "./ammo-helper.js";
+import { statusAndData } from './ammo/dispatch-helper.js';
 import {
   isStatusCode,
   toStatusCode,
   toStatusMessage,
-} from "../../utils/status-codes.js";
-import html from "../../utils/tejas-entrypoint-html.js";
-import ammoEnhancer from "./ammo-enhancer.js";
+} from '../utils/status-codes.js';
+import html from '../utils/tejas-entrypoint-html.js';
+import ammoEnhancer from './ammo/enhancer.js';
 
 class Ammo {
   constructor(req, res) {
@@ -36,25 +36,25 @@ class Ammo {
 
   dispatch() {
     const { statusCode, data, contentType } = statusAndData(arguments);
-    const contentTypeHeader = { "Content-Type": contentType };
+    const contentTypeHeader = { 'Content-Type': contentType };
 
     this.dispatchedData = data;
 
     this.res.writeHead(statusCode, contentTypeHeader);
-    this.res.write(data ?? "");
+    this.res.write(data ?? '');
     this.res.end();
   }
 
   notFound() {
-    this.throw(new Error("Not Found"));
+    this.throw(new Error('Not Found'));
   }
 
   notAllowed() {
-    this.throw(new Error("Method Not Allowed"));
+    this.throw(new Error('Method Not Allowed'));
   }
 
   unauthorized() {
-    this.throw(new Error("Unauthorized"));
+    this.throw(new Error('Unauthorized'));
   }
 
   defaultEntry() {

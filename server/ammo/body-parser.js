@@ -48,18 +48,4 @@ function parseUrlEncodedData(req) {
   });
 }
 
-function parseMultiPartData(req) {
-  return new Promise(async (resolve, reject) => {
-    const form = formidable({});
-    let fields;
-    let files;
-    try {
-      [fields, files] = await form.parse(req);
-      resolve({ fields, files });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
 export default parseDataBasedOnContentType;

@@ -1,4 +1,4 @@
-import isMiddlewareValid from './../../utils/middleware-validator.js';
+import isMiddlewareValid from './middleware-validator.js';
 
 class TargetRegistry {
   constructor() {
@@ -34,8 +34,9 @@ class TargetRegistry {
 
   aim(method, endpoint) {
     return this.targets.find((target) => {
-      return target.endpoint === endpoint &&
-          target.allowedMethods.includes(method);
+      return (
+        target.endpoint === endpoint && target.allowedMethods.includes(method)
+      );
     });
   }
 }

@@ -1,5 +1,5 @@
-import isMiddlewareValid from '../../utils/middleware-validator.js';
-import TargetRegistry from './registry.js';
+import isMiddlewareValid from './targets/middleware-validator.js';
+import TargetRegistry from './targets/registry.js';
 
 const targetRegistry = new TargetRegistry();
 

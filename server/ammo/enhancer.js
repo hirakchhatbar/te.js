@@ -1,4 +1,4 @@
-import bodyParser from '../../utils/body-parser.js';
+import bodyParser from './body-parser.js';
 
 function hostname(req) {
   let host = req.headers['X-Forwarded-Host'];

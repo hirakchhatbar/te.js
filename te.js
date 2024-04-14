@@ -1,33 +1,48 @@
 import { createServer } from 'node:http';
 
+import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
-import ConfigController from './utils/config-controller.js';
 
 import TargetRegistry from './server/targets/registry.js';
-import Target from './server/targets/target.js';
-import targetHandler from './server/targets/handler.js';
+import Target from './server/target.js';
 
-import requestLogger from './utils/request-logger.js';
+import { loadConfigFile, standardizeObj } from './utils/configuration.js';
+
+import targetHandler from './server/handler.js';
 
 class Tejas {
   /*
    * Constructor for Tejas
    * @param {Object} options - Options for Tejas
-   * @param {Boolean} options.debug - Debug mode
-   * @param {Number} options.port - Port to listen on
-   * @param {Boolean} options.mongoDB - Whether to connect to MongoDB
+   * @param {Number} options.port - Port to run Tejas on
+   * @param {Boolean} options.log.http_requests - Whether to log incoming HTTP requests
+   * @param {Boolean} options.log.exceptions - Whether to log exceptions
    */
   constructor(options) {
     if (Tejas.instance) return Tejas.instance;
 
-    this.config = new ConfigController(options).generate();
+    this.generateConfiguration(options);
     this.logger = new TejLogger('Tejas');
     this.targetRegistry = new TargetRegistry();
     this.checklist = [];
 
-    this.midair(requestLogger);
-
     Tejas.instance = this;
+  }
+
+  generateConfiguration(options) {
+    const configVars = standardizeObj(loadConfigFile());
+    const envVars = standardizeObj(process.env);
+    const userVars = standardizeObj(options);
+
+    const config = { ...configVars, ...envVars, ...userVars };
+    for (const key in config) {
+      if (config.hasOwnProperty(key)) {
+        setEnv(key, config[key]);
+      }
+    }
+
+    // Load defaults
+    if (!env('PORT')) setEnv('PORT', 1403);
   }
 
   midair() {
@@ -37,8 +52,8 @@ class Tejas {
 
   takeoff() {
     this.engine = createServer(targetHandler);
-    this.engine.listen(this.config.port, () => {
-      this.logger.info(`Tejas took off from port ${this.config.port}`);
+    this.engine.listen(env('PORT'), () => {
+      this.logger.info(`Tejas took off from port ${env('PORT')}`);
     });
 
     this.engine.on('listening', () => {

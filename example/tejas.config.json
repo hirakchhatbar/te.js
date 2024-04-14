@@ -1,0 +1,7 @@
+{
+  "port": 1403,
+  "log": {
+    "http_requests": true,
+    "exceptions": true
+  }
+}

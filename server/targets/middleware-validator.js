@@ -11,7 +11,8 @@ const isMiddlewareValid = (middleware) => {
   const args = middleware.length;
   if (args !== 2 && args !== 3) {
     logger.error(
-        `Middleware ${middleware.name} should have 2 arguments (ammo, next) or 3 arguments (req, res, next). Skipping...`);
+      `Middleware ${middleware.name} should have 2 arguments (ammo, next) or 3 arguments (req, res, next). Skipping...`,
+    );
     return false;
   }
 

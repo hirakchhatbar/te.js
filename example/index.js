@@ -1,5 +1,5 @@
-import {Tejas} from 'te.js';
-import "./routes/index.target.js"
+import { Tejas } from 'te.js';
+import './routes/index.target.js';
 
 const tejas = new Tejas();
 tejas.takeoff();
