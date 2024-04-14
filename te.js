@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 
 import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
+import database from './database/index.js';
 
 import TargetRegistry from './server/targets/registry.js';
 import Target from './server/target.js';
@@ -10,23 +11,67 @@ import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
 import targetHandler from './server/handler.js';
 
+const logger = new TejLogger('Tejas');
+const targetRegistry = new TargetRegistry();
+
 class Tejas {
   /*
    * Constructor for Tejas
-   * @param {Object} options - Options for Tejas
-   * @param {Number} options.port - Port to run Tejas on
-   * @param {Boolean} options.log.http_requests - Whether to log incoming HTTP requests
-   * @param {Boolean} options.log.exceptions - Whether to log exceptions
+   * @param {Object} args - Arguments for Tejas
+   * @param {Number} args.port - Port to run Tejas on
+   * @param {Boolean} args.log.http_requests - Whether to log incoming HTTP requests
+   * @param {Boolean} args.log.exceptions - Whether to log exceptions
+   * @param {String} args.db.type - Database type. It can be 'mongodb', 'mysql', 'postgres', 'sqlite'
+   * @param {String} args.db.uri - Connection URI string for the database
    */
-  constructor(options) {
+  constructor(args) {
     if (Tejas.instance) return Tejas.instance;
-
-    this.generateConfiguration(options);
-    this.logger = new TejLogger('Tejas');
-    this.targetRegistry = new TargetRegistry();
-    this.checklist = [];
-
     Tejas.instance = this;
+
+    this.generateConfiguration(args);
+  }
+
+  /*
+   * Connect to a database
+   * @param {Object}
+   * @param {String} args.db - Database type. It can be 'mongodb', 'mysql', 'postgres', 'sqlite'
+   * @param {String} args.uri - Connection URI string for the database
+   * @param {Object} args.options - Options for the database connection
+   */
+  connectDatabase(args) {
+    const db = args?.db ?? env('DB_TYPE');
+    const uri = args?.uri ?? env('DB_URI');
+    const options = args?.options ?? {};
+
+    if (!db) return;
+    if (!uri) {
+      logger.error(
+        `Tejas could not connect to ${db} as it couldn't find a connection URI. See our documentation for more information.`,
+        false,
+      );
+      return;
+    }
+
+    const connect = database[db];
+    if (!connect) {
+      logger.error(
+        `Tejas could not connect to ${db} as it is not supported. See our documentation for more information.`,
+        false,
+      );
+      return;
+    }
+
+    connect(uri, options, (error) => {
+      if (error) {
+        logger.error(
+          `Tejas could not connect to ${db}. Error: ${error}`,
+          false,
+        );
+        return;
+      }
+
+      logger.info(`Tejas connected to ${db} successfully.`);
+    });
   }
 
   generateConfiguration(options) {
@@ -47,28 +92,14 @@ class Tejas {
 
   midair() {
     if (!arguments) return;
-    this.targetRegistry.addGlobalMiddleware(...arguments);
+    targetRegistry.addGlobalMiddleware(...arguments);
   }
 
   takeoff() {
     this.engine = createServer(targetHandler);
     this.engine.listen(env('PORT'), () => {
-      this.logger.info(`Tejas took off from port ${env('PORT')}`);
+      logger.info(`Tejas took off from port ${env('PORT')}`);
     });
-
-    this.engine.on('listening', () => {
-      for (const next of this.checklist) {
-        if (typeof next === 'function') next();
-        else
-          this.logger.error(
-            `Checklist item ${next} is not a function. Skipping...`,
-          );
-      }
-    });
-  }
-
-  onRunway(...checklist) {
-    this.checklist.push(...checklist);
   }
 }
 

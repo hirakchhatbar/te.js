@@ -3,5 +3,9 @@
   "log": {
     "http_requests": true,
     "exceptions": true
+  },
+  "db": {
+    "type": "mongodb",
+    "uri": "mongodb://localhost:27017/te-js"
   }
 }
