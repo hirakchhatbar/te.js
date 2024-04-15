@@ -1,6 +1,7 @@
-import { extAndType, extract, paths } from './helper.js';
-import fs from 'fs';
 import { filesize } from 'filesize';
+import fs from 'fs';
+import TejError from './../error.js';
+import { extAndType, extract, paths } from './helper.js';
 
 class TejFileUploader {
   /*
@@ -15,7 +16,7 @@ class TejFileUploader {
     this.maxFileSize = options.maxFileSize;
   }
 
-  single() {
+  file() {
     const keys = [...arguments];
     return async (ammo, next) => {
       if (!ammo.headers['content-type'].startsWith('multipart/form-data'))
@@ -41,27 +42,95 @@ class TejFileUploader {
           if (!filename) continue;
 
           const { dir, absolute, relative } = paths(this.destination, filename);
-          const size = filesize(obj.value.length, { output: 'object' });
-          const maxSize = filesize(this.maxFileSize, { output: 'object' });
+          const size = filesize(obj.value.length,
+            { output: 'object', round: 0 });
+          const maxSize = filesize(this.maxFileSize,
+            { output: 'object', round: 0 });
           if (this.maxFileSize && obj.value.length > this.maxFileSize)
-            return ammo.throw(
-              413,
-              `Size of the file ${filename} exceeds the specified limit of ${maxSize.value} ${maxSize.symbol}`,
-            );
+            throw new TejError(413,
+              `File size exceeds ${maxSize.value} ${maxSize.symbol}`);
 
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
           fs.writeFileSync(absolute, obj.value, 'binary');
 
           updatedPayload[key] = {
             filename,
+            extension: ext,
             path: {
               absolute: absolute,
-              relative: relative,
+              relative: relative
             },
             mimetype: type,
-            size,
+            size
           };
         }
+      }
+
+      ammo.payload = updatedPayload;
+      next();
+    };
+  }
+
+  files() {
+    const keys = [...arguments];
+    return async (ammo, next) => {
+      if (!ammo.headers['content-type'].startsWith('multipart/form-data'))
+        return next();
+
+      const payload = ammo.payload;
+      const updatedPayload = {};
+      const files = [];
+
+      for (const part in payload) {
+        const obj = payload[part];
+        const contentDisposition = obj.headers['content-disposition'];
+
+        const { ext, type } = extAndType(obj);
+        if (!ext) continue;
+
+        const key = extract(contentDisposition, 'name');
+        if (ext === 'txt') {
+          updatedPayload[key] = obj.value;
+        } else {
+          if (!keys.includes(key)) continue;
+
+          const filename = extract(contentDisposition, 'filename');
+          if (!filename) continue;
+
+          const { dir, absolute, relative } = paths(this.destination, filename);
+          const size = filesize(obj.value.length,
+            { output: 'object', round: 0 });
+          const maxSize = filesize(this.maxFileSize,
+            { output: 'object', round: 0 });
+          if (this.maxFileSize && obj.value.length > this.maxFileSize) {
+            throw new TejError(413,
+              `File size exceeds ${maxSize.value} ${maxSize.symbol}`);
+          }
+
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(absolute, obj.value, 'binary');
+
+          files.push({
+            key,
+            filename,
+            path: {
+              absolute: absolute,
+              relative: relative
+            },
+            mimetype: type,
+            size
+          });
+        }
+      }
+
+      const groupedFilesByKey = files.reduce((acc, file) => {
+        if (!acc[file.key]) acc[file.key] = [];
+        acc[file.key].push(file);
+        return acc;
+      }, {});
+
+      for (const key in groupedFilesByKey) {
+        updatedPayload[key] = groupedFilesByKey[key];
       }
 
       ammo.payload = updatedPayload;

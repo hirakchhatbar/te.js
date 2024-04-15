@@ -10,7 +10,7 @@ async function parseDataBasedOnContentType(req) {
   }
 
   // Check if content type is multipart form data
-  if (req.headers['content-type'].startsWith('multipart/form-data')) {
+  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
     return await parseFormData(req);
   }
 

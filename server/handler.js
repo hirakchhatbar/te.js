@@ -1,9 +1,10 @@
-import TejLogger from 'tej-logger';
 import { env } from 'tej-env';
+import TejLogger from 'tej-logger';
+import logHttpRequest from '../utils/request-logger.js';
 
 import Ammo from './ammo.js';
+import TejError from './error.js';
 import TargetRegistry from './targets/registry.js';
-import logHttpRequest from '../utils/request-logger.js';
 
 const targetRegistry = new TargetRegistry();
 const errorLogger = new TejLogger('Tejas.Exception');
@@ -24,8 +25,6 @@ const executeChain = async (target, ammo) => {
     try {
       await middleware(...args);
     } catch (err) {
-      const ammo =
-        middleware.length === 2 ? args[0] : new Ammo(args[0], args[1]);
       errorHandler(ammo, err);
     }
   };
@@ -33,10 +32,13 @@ const executeChain = async (target, ammo) => {
   await next();
 };
 
-const errorHandler = (ammo, err, errCode) => {
+const errorHandler = (ammo, err) => {
   if (env('LOG_EXCEPTIONS')) errorLogger.error(err);
 
-  ammo.throw(errCode, err);
+  if (err instanceof TejError)
+    return ammo.throw(err.code, err);
+
+  ammo.throw(500, err);
 };
 
 const handler = async (req, res) => {
@@ -55,10 +57,9 @@ const handler = async (req, res) => {
       } else {
         errorHandler(
           ammo,
-          new Error(
-            `No target found for URL ${ammo.fullURL} with method ${ammo.method}`,
-          ),
-          404,
+          new TejError(404,
+            `No target found for URL ${ammo.fullURL} with method ${ammo.method}`
+          )
         );
       }
     }

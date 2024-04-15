@@ -3,15 +3,16 @@ import { Target, TejFileUploader } from 'te.js';
 const target = new Target('/user');
 
 const upload = new TejFileUploader({
-  destination: 'uploads',
-  name: 'profile_image',
-  maxFileSize: 1024,
+  destination: 'public/uploads',
+  maxFileSize: 5 * 1024 * 1024,
 });
 
 target.register(
   '/updateProfileImage',
-  upload.single('image', 'imageB'),
+  upload.files('photos', 'covers'),
   (ammo) => {
-    ammo.fire(ammo.payload);
+    const photos = ammo.payload.photos;
+    console.log(photos);
+    ammo.fire("Done!");
   },
 );
