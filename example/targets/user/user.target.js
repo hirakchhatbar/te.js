@@ -11,8 +11,7 @@ target.register(
   '/updateProfileImage',
   upload.files('photos', 'covers'),
   (ammo) => {
-    const photos = ammo.payload.photos;
-    console.log(photos);
-    ammo.fire("Done!");
+    console.log(ammo.payload);
+    ammo.fire('Profile image updated successfully!')
   },
 );

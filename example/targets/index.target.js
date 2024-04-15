@@ -1,4 +1,5 @@
 import { Target } from 'te.js';
+import auth from '../middlewares/auth.js';
 
 const target = new Target();
 

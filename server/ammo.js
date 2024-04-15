@@ -6,6 +6,7 @@ import {
 } from '../utils/status-codes.js';
 import html from '../utils/tejas-entrypoint-html.js';
 import ammoEnhancer from './ammo/enhancer.js';
+import TejError from './error.js';
 
 class Ammo {
   constructor(req, res) {
@@ -54,7 +55,7 @@ class Ammo {
   }
 
   unauthorized() {
-    this.throw(new Error('Unauthorized'));
+    throw new TejError(401, 'Unauthorized');
   }
 
   defaultEntry() {
