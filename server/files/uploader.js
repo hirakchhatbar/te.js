@@ -13,7 +13,8 @@ class TejFileUploader {
     this.name = options.name;
   }
 
-  single(reqKey) {
+  single() {
+    const keys = [...arguments];
     return async (ammo, next) => {
       if (!ammo.headers['content-type'].startsWith('multipart/form-data'))
         return next();
@@ -29,11 +30,10 @@ class TejFileUploader {
         if (!ext) continue;
 
         const key = extract(contentDisposition, 'name');
-
         if (ext === 'txt') {
           updatedPayload[key] = obj.value;
         } else {
-          if (key !== reqKey) continue;
+          if (!keys.includes(key)) continue;
 
           const filename = extract(contentDisposition, 'filename');
           if (!filename) continue;

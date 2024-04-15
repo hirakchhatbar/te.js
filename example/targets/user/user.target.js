@@ -7,6 +7,10 @@ const upload = new TejFileUploader({
   name: 'profile_image',
 });
 
-target.register('/updateProfileImage', upload.single('image'), (ammo) => {
-  ammo.fire(ammo.payload);
-});
+target.register(
+  '/updateProfileImage',
+  upload.single('image', 'imageB'),
+  (ammo) => {
+    ammo.fire(ammo.payload);
+  },
+);
