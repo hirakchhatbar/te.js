@@ -62,8 +62,8 @@ class Ammo {
   }
 
   throw() {
-    const err = arguments[0];
-    const errCode = arguments[1];
+    const errCode = arguments[0];
+    const err = arguments[1];
 
     let errMsg = err instanceof Error ? err.message : err.toString();
 
@@ -79,16 +79,16 @@ class Ammo {
       if (!isNaN(parseInt(errMessage))) {
         // Execute when errMessage is a number. Notice ! in front of isNan
         const message = toStatusMessage(errMessage) ?? toStatusMessage(500);
-        this.dispatch(message, message);
+        this.fire(message, message);
         return;
       }
 
       const code = toStatusCode(errMsg) ?? 500;
-      this.dispatch(code, errMsg);
+      this.fire(code, errMsg);
       return;
     }
 
-    this.dispatch(err);
+    this.fire(err);
   }
 }
 

@@ -7,10 +7,12 @@ class TejFileUploader {
    * @param {Object} options
    * @param {string} options.destination - Destination to upload file to
    * @param {string} options.name - Name of the file
+   * @param {number} options.maxFileSize - Maximum file size in bytes
    */
   constructor(options = {}) {
     this.destination = options.destination;
     this.name = options.name;
+    this.maxFileSize = options.maxFileSize;
   }
 
   single() {
@@ -40,6 +42,12 @@ class TejFileUploader {
 
           const { dir, absolute, relative } = paths(this.destination, filename);
           const size = filesize(obj.value.length, { output: 'object' });
+          const maxSize = filesize(this.maxFileSize, { output: 'object' });
+          if (this.maxFileSize && obj.value.length > this.maxFileSize)
+            return ammo.throw(
+              413,
+              `Size of the file ${filename} exceeds the specified limit of ${maxSize.value} ${maxSize.symbol}`,
+            );
 
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
           fs.writeFileSync(absolute, obj.value, 'binary');

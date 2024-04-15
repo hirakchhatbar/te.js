@@ -36,7 +36,7 @@ const executeChain = async (target, ammo) => {
 const errorHandler = (ammo, err, errCode) => {
   if (env('LOG_EXCEPTIONS')) errorLogger.error(err);
 
-  ammo.throw(err, errCode);
+  ammo.throw(errCode, err);
 };
 
 const handler = async (req, res) => {
