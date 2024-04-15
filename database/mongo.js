@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose from './../example/node_modules/mongoose/index.js';
 
 const connect = (uri, options, cb) => {
   mongoose

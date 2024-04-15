@@ -34,7 +34,7 @@ class Ammo {
     await ammoEnhancer(this);
   }
 
-  dispatch() {
+  fire() {
     const { statusCode, data, contentType } = statusAndData(arguments);
     const contentTypeHeader = { 'Content-Type': contentType };
 
@@ -58,7 +58,7 @@ class Ammo {
   }
 
   defaultEntry() {
-    this.dispatch(html);
+    this.fire(html);
   }
 
   throw() {
@@ -69,7 +69,7 @@ class Ammo {
 
     if (errCode && isStatusCode(errCode)) {
       if (!errMsg) errMsg = toStatusMessage(errCode);
-      this.dispatch(errCode, errMsg);
+      this.fire(errCode, errMsg);
       return;
     }
 

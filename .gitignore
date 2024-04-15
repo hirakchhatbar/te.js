@@ -10,3 +10,4 @@ example/.env
 example/node_modules
 example/package-lock.json
 example/.idea
+example/uploads

@@ -1,6 +1,8 @@
 import { Tejas } from 'te.js';
-import './routes/index.target.js';
+import cors from 'cors';
 
 const tejas = new Tejas();
-tejas.connectDatabase();
+
+tejas.midair(cors());
+
 tejas.takeoff();

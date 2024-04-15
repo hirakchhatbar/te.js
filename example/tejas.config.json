@@ -1,8 +1,12 @@
 {
   "port": 1403,
   "log": {
-    "http_requests": true,
+    "http_requests": false,
     "exceptions": true
+  },
+  "dir":{
+    "targets": "targets",
+    "midair": "midair"
   },
   "db": {
     "type": "mongodb",

@@ -6,10 +6,13 @@ import database from './database/index.js';
 
 import TargetRegistry from './server/targets/registry.js';
 import Target from './server/target.js';
+import TejFileUploader from './server/files/uploader.js';
 
 import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
 import targetHandler from './server/handler.js';
+import { findTargetFiles } from './utils/auto-register.js';
+import { pathToFileURL } from 'node:url';
 
 const logger = new TejLogger('Tejas');
 const targetRegistry = new TargetRegistry();
@@ -29,6 +32,7 @@ class Tejas {
     Tejas.instance = this;
 
     this.generateConfiguration(args);
+    this.registerTargetsDir();
   }
 
   /*
@@ -95,12 +99,31 @@ class Tejas {
     targetRegistry.addGlobalMiddleware(...arguments);
   }
 
+  registerTargetsDir() {
+    findTargetFiles((targetFiles, err) => {
+      if (err) {
+        logger.error(
+          `Tejas could not register target files. Error: ${err}`,
+          false,
+        );
+        return;
+      }
+
+      if (targetFiles) {
+        for (const file of targetFiles) {
+          import(pathToFileURL(`${file.path}/${file.name}`));
+          logger.info(`Registered targets from ${file.name}`);
+        }
+      }
+    });
+  }
+
   takeoff() {
     this.engine = createServer(targetHandler);
     this.engine.listen(env('PORT'), () => {
-      logger.info(`Tejas took off from port ${env('PORT')}`);
+      logger.info(`Took off from port ${env('PORT')}`);
     });
   }
 }
 
-export { Tejas, Target };
+export { Tejas, Target, TejFileUploader };

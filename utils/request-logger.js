@@ -12,7 +12,7 @@ function logHttpRequest(ammo, next) {
   ammo.res.on('finish', () => {
     const res = ammo.res;
     const method = italic(whiteBright(ammo.method));
-    const endpoint = bold(ammo.endpoint.split('?')[0].replace(/\/$/, ''));
+    const endpoint = bold(ammo.endpoint);
     const statusCode =
       res.statusCode >= 400
         ? bgRed(whiteBright(bold(`✖ ${res.statusCode}`)))
