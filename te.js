@@ -5,8 +5,6 @@ import TejLogger from 'tej-logger';
 import database from './database/index.js';
 
 import TargetRegistry from './server/targets/registry.js';
-import Target from './server/target.js';
-import TejFileUploader from './server/files/uploader.js';
 
 import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
@@ -125,4 +123,9 @@ class Tejas {
   }
 }
 
-export { Tejas, Target, TejFileUploader };
+export {default as Target} from './server/target.js';
+export {default as TejFileUploader} from './server/files/uploader.js';
+export default Tejas;
+
+// TODO Ability to register a target (route) from tejas instance
+// TODO tejas as CLI tool

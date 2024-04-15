@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'node:fs';
 
 const findTargetFiles = (cb) => {
   if (!process.env.DIR_TARGETS) return;

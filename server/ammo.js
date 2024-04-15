@@ -13,6 +13,14 @@ class Ammo {
     this.req = req;
     this.res = res;
 
+    this.GET = false;
+    this.POST = false;
+    this.PUT = false;
+    this.DELETE = false;
+    this.PATCH = false;
+    this.HEAD = false;
+    this.OPTIONS = false;
+
     // Request related data
     this.ip = undefined;
     this.headers = undefined;
@@ -33,6 +41,14 @@ class Ammo {
 
   async enhance() {
     await ammoEnhancer(this);
+
+    this.GET = this.method === 'GET';
+    this.POST = this.method === 'POST';
+    this.PUT = this.method === 'PUT';
+    this.DELETE = this.method === 'DELETE';
+    this.PATCH = this.method === 'PATCH';
+    this.HEAD = this.method === 'HEAD';
+    this.OPTIONS = this.method === 'OPTIONS';
   }
 
   fire() {
@@ -47,11 +63,11 @@ class Ammo {
   }
 
   notFound() {
-    this.throw(new Error('Not Found'));
+    throw new TejError(404, 'Not Found');
   }
 
   notAllowed() {
-    this.throw(new Error('Method Not Allowed'));
+    throw new TejError(405, 'Method Not Allowed');
   }
 
   unauthorized() {

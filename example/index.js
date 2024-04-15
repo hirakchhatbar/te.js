@@ -1,4 +1,4 @@
-import { Tejas } from 'te.js';
+import Tejas from 'te.js';
 
 const tejas = new Tejas();
 tejas.takeoff();
