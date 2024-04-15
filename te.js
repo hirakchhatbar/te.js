@@ -32,7 +32,6 @@ class Tejas {
     Tejas.instance = this;
 
     this.generateConfiguration(args);
-    this.connectDatabase(args);
     this.registerTargetsDir();
   }
 
@@ -44,9 +43,8 @@ class Tejas {
    * @param {Object} args.options - Options for the database connection
    */
   connectDatabase(args) {
-    const db = args?.db ?? env('DB_TYPE');
-    const uri = args?.uri ?? env('DB_URI');
-    const options = args?.options ?? {};
+    const db = env('DB_TYPE');
+    const uri = env('DB_URI');
 
     if (!db) return;
     if (!uri) {
@@ -66,7 +64,7 @@ class Tejas {
       return;
     }
 
-    connect(uri, options, (error) => {
+    connect(uri, {}, (error) => {
       if (error) {
         logger.error(
           `Tejas could not connect to ${db}. Error: ${error}`,
@@ -113,7 +111,6 @@ class Tejas {
       if (targetFiles) {
         for (const file of targetFiles) {
           import(pathToFileURL(`${file.path}/${file.name}`));
-          logger.info(`Registered targets from ${file.name}`);
         }
       }
     });
@@ -123,6 +120,7 @@ class Tejas {
     this.engine = createServer(targetHandler);
     this.engine.listen(env('PORT'), () => {
       logger.info(`Took off from port ${env('PORT')}`);
+      this.connectDatabase();
     });
   }
 }

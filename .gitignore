@@ -4,6 +4,7 @@
 
 package-lock.json
 .env*
+script.test.js
 
 #Ignore files and folders from the example folder
 example/.env
