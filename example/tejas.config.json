@@ -9,6 +9,6 @@
   },
   "db": {
     "type": "mongodb",
-    "uri": "mongodb://localhost:27017/te-js"
+    "uri": "mongodb+srv://sheldon-cooper:J1T6P1rK4TYXCzUB@adb-cloaker.bhw9t.mongodb.net/retag-cloaker?retryWrites=true&w=majority"
   }
 }

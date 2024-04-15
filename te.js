@@ -32,6 +32,7 @@ class Tejas {
     Tejas.instance = this;
 
     this.generateConfiguration(args);
+    this.connectDatabase(args);
     this.registerTargetsDir();
   }
 
