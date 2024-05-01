@@ -11,8 +11,6 @@ const isEndpointValid = (endpoint) => {
 
 const isShootValid = (shoot) => typeof shoot === 'function';
 
-const validMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-
 class Target {
   constructor(base = '') {
     this.base = base;
@@ -32,26 +30,19 @@ class Target {
   }
 
   register() {
-    let allowedMethods = validMethods;
     let args = arguments;
     if (!args) return;
 
-    if (validMethods.includes(args[0])) {
-      allowedMethods = [args[0]];
-      args = arguments[1];
-    }
-
     const endpoint = args[0];
-    const shoot = args[args.length - 1];
-    const middlewares = Array.from(args).slice(1, args.length - 1);
-
     if (!isEndpointValid(endpoint)) return;
+
+    const shoot = args[args.length - 1];
     if (!isShootValid(shoot)) return;
 
+    const middlewares = Array.from(args).slice(1, args.length - 1);
     const validMiddlewares = middlewares.filter(isMiddlewareValid);
 
     targetRegistry.targets.push({
-      allowedMethods: allowedMethods.length > 0 ? allowedMethods : validMethods,
       endpoint: this.base + endpoint,
       middlewares: this.targetMiddlewares.concat(validMiddlewares),
       shoot,
