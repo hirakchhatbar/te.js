@@ -1,5 +1,5 @@
 import { filesize } from 'filesize';
-import fs from 'fs';
+import fs from 'node:fs';
 import TejError from './../error.js';
 import { extAndType, extract, paths } from './helper.js';
 
