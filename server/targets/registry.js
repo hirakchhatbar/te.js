@@ -35,7 +35,7 @@ class TargetRegistry {
   aim(method, endpoint) {
     return this.targets.find((target) => {
       return (
-        target.endpoint === endpoint && target.allowedMethods.includes(method)
+        target.endpoint === endpoint
       );
     });
   }
