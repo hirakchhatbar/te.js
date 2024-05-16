@@ -9,7 +9,7 @@ const upload = new TejFileUploader({
 
 target.register(
   '/updateProfileImage',
-  upload.files('photos', 'covers'),
+  upload.file("image"),
   (ammo) => {
     console.log(ammo.payload);
     ammo.fire('Profile image updated successfully!')

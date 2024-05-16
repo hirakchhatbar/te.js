@@ -97,20 +97,18 @@ class Tejas {
   }
 
   registerTargetsDir() {
-    findTargetFiles((targetFiles, err) => {
-      if (err) {
-        logger.error(
-          `Tejas could not register target files. Error: ${err}`,
-          false,
-        );
-        return;
-      }
-
+    findTargetFiles().then((targetFiles) => {
       if (targetFiles) {
         for (const file of targetFiles) {
           import(pathToFileURL(`${file.path}/${file.name}`));
         }
       }
+
+    }).catch((err) => {
+      logger.error(
+        `Tejas could not register target files. Error: ${err}`,
+        false,
+      );
     });
   }
 

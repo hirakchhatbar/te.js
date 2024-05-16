@@ -30,10 +30,11 @@ class TejFileUploader {
         const contentDisposition = obj.headers['content-disposition'];
 
         const { ext, type } = extAndType(obj);
-        if (!ext) continue;
 
         const key = extract(contentDisposition, 'name');
-        if (ext === 'txt') {
+        if (!key) continue;
+
+        if (!ext || ext === 'txt') {
           updatedPayload[key] = obj.value;
         } else {
           if (!keys.includes(key)) continue;
