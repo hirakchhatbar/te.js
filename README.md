@@ -4,7 +4,7 @@
 
 <p id="description">A Node Framework For Powerful Backend Services</p>
 
-<h3><a href="https://tejas-documentation.vercel.app" target="_blank"></a>Documentation (WIP)</h3>
+<h3><a href="https://tejas-documentation.vercel.app" target="_blank">Documentation (WIP)</a></h3>
 
 <h2>Planned Features</h2>
 *   Robust exception handling so that your app never dies even if you forget to catch it.
