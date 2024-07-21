@@ -27,7 +27,7 @@
     "formidable": "^3.5.1",
     "mime": "^4.0.1",
     "statuses": "^2.0.1",
-    "tej-env": "^1.0.9",
+    "tej-env": "^1.1.0",
     "tej-logger": "^1.2.1"
   },
   "lint-staged": {
