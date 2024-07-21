@@ -1,6 +1,6 @@
 {
   "name": "te.js",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "A nodejs framework",
   "type": "module",
   "main": "te.js",
@@ -27,7 +27,7 @@
     "formidable": "^3.5.1",
     "mime": "^4.0.1",
     "statuses": "^2.0.1",
-    "tej-env": "^1.1.0",
+    "tej-env": "^1.1.1",
     "tej-logger": "^1.2.1"
   },
   "lint-staged": {
