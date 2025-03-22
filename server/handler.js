@@ -35,8 +35,7 @@ const executeChain = async (target, ammo) => {
 const errorHandler = (ammo, err) => {
   if (env('LOG_EXCEPTIONS')) errorLogger.error(err);
 
-  if (err instanceof TejError)
-    return ammo.throw(err.code, err);
+  if (err instanceof TejError) return ammo.throw(err.code, err);
 
   ammo.throw(500, err);
 };
@@ -44,22 +43,24 @@ const errorHandler = (ammo, err) => {
 const handler = async (req, res) => {
   const target = targetRegistry.aim(req.method, req.url.split('?')[0]);
   const ammo = new Ammo(req, res);
-  await ammo.enhance();
-
-  if (env('LOG_HTTP_REQUESTS')) logHttpRequest(ammo);
 
   try {
     if (target) {
+      await ammo.enhance();
+
+      if (env('LOG_HTTP_REQUESTS')) logHttpRequest(ammo);
       await executeChain(target, ammo);
+
     } else {
       if (req.url === '/') {
         ammo.defaultEntry();
       } else {
         errorHandler(
           ammo,
-          new TejError(404,
-            `No target found for URL ${ammo.fullURL} with method ${ammo.method}`
-          )
+          new TejError(
+            404,
+            `No target found for URL ${ammo.fullURL} with method ${ammo.method}`,
+          ),
         );
       }
     }
