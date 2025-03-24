@@ -1,4 +1,4 @@
-import CacheEntity from './adapters/cache-entity.js';
+import CacheEntity from './entity.js';
 import { getMaxCacheSizeInBytes } from './utils/cache-size.js';
 
 class LRUCache {
