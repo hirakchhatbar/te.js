@@ -2,7 +2,7 @@
 
 <p align="center"><img src="https://tejas-documentation.vercel.app/tejas-logo.svg" alt="project-image"></p>
 
-<p id="description">A Node Framework For Powerful Backend Services</p>
+<p id="description">A CacheEntity Framework For Powerful Backend Services</p>
 
 <h3><a href="https://tejas-documentation.vercel.app" target="_blank">Documentation (WIP)</a></h3>
 

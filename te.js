@@ -20,8 +20,10 @@ class Tejas {
    * Constructor for Tejas
    * @param {Object} args - Arguments for Tejas
    * @param {Number} args.port - Port to run Tejas on
+   * @param {Object} args.log - Logging options
    * @param {Boolean} args.log.http_requests - Whether to log incoming HTTP requests
    * @param {Boolean} args.log.exceptions - Whether to log exceptions
+   * @param {Object} args.db - Database configuration
    * @param {String} args.db.type - Database type. It can be 'mongodb', 'mysql', 'postgres', 'sqlite'
    * @param {String} args.db.uri - Connection URI string for the database
    */
@@ -35,7 +37,7 @@ class Tejas {
 
   /*
    * Connect to a database
-   * @param {Object}
+   * @param {Object} args - Database connection arguments
    * @param {String} args.db - Database type. It can be 'mongodb', 'mysql', 'postgres', 'sqlite'
    * @param {String} args.uri - Connection URI string for the database
    * @param {Object} args.options - Options for the database connection
@@ -75,6 +77,10 @@ class Tejas {
     });
   }
 
+  /*
+   * Generate configuration by merging config file, environment variables, and user options
+   * @param {Object} options - User provided options
+   */
   generateConfiguration(options) {
     const configVars = standardizeObj(loadConfigFile());
     const envVars = standardizeObj(process.env);
@@ -91,11 +97,18 @@ class Tejas {
     if (!env('PORT')) setEnv('PORT', 1403);
   }
 
+  /*
+   * Add global middleware
+   * @param {...Function} arguments - Middleware functions
+   */
   midair() {
     if (!arguments) return;
     targetRegistry.addGlobalMiddleware(...arguments);
   }
 
+  /*
+   * Register target directories
+   */
   registerTargetsDir() {
     findTargetFiles().then((targetFiles) => {
       if (targetFiles) {
@@ -112,6 +125,9 @@ class Tejas {
     });
   }
 
+  /*
+   * Start the server and connect to the database
+   */
   takeoff() {
     this.engine = createServer(targetHandler);
     this.engine.listen(env('PORT'), () => {
@@ -127,3 +143,4 @@ export default Tejas;
 
 // TODO Ability to register a target (route) from tejas instance
 // TODO tejas as CLI tool
+
