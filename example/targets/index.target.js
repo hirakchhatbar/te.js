@@ -1,11 +1,10 @@
-import { Target } from 'te.js';
+import { Target, listAllEndpoints } from 'te.js';
 
 const target = new Target();
 
-target.register('/hello', (ammo) => {
-  throw new Error('Error thrown to demonstrate robust error handling of te.js');
+target.register('/', (ammo) => {
   ammo.fire({
     status: 200,
-    body: 'Hello, World!'
+    body: listAllEndpoints(true),
   });
 });

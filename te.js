@@ -97,19 +97,20 @@ class Tejas {
   }
 
   registerTargetsDir() {
-    findTargetFiles().then((targetFiles) => {
-      if (targetFiles) {
-        for (const file of targetFiles) {
-          import(pathToFileURL(`${file.path}/${file.name}`));
+    findTargetFiles()
+      .then((targetFiles) => {
+        if (targetFiles) {
+          for (const file of targetFiles) {
+            import(pathToFileURL(`${file.path}/${file.name}`));
+          }
         }
-      }
-
-    }).catch((err) => {
-      logger.error(
-        `Tejas could not register target files. Error: ${err}`,
-        false,
-      );
-    });
+      })
+      .catch((err) => {
+        logger.error(
+          `Tejas could not register target files. Error: ${err}`,
+          false,
+        );
+      });
   }
 
   takeoff() {
@@ -121,8 +122,13 @@ class Tejas {
   }
 }
 
-export {default as Target} from './server/target.js';
-export {default as TejFileUploader} from './server/files/uploader.js';
+const listAllEndpoints = (grouped = false) => {
+  return targetRegistry.getAllEndpoints(grouped);
+};
+
+export { default as Target } from './server/target.js';
+export { default as TejFileUploader } from './server/files/uploader.js';
+export { listAllEndpoints };
 export default Tejas;
 
 // TODO Ability to register a target (route) from tejas instance
