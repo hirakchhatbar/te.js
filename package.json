@@ -1,6 +1,6 @@
 {
   "name": "te.js",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A nodejs framework",
   "type": "module",
   "main": "te.js",
