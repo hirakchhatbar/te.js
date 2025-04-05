@@ -16,6 +16,11 @@ class LRUCache {
     this.tail = null;
   }
 
+  // Add getter for currentSize
+  getCurrentSize() {
+    return this.currentSize;
+  }
+
   /**
    * Inserts or updates the value for a given key.
    * @param {string} key - The key to set.

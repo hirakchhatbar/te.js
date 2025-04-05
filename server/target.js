@@ -4,8 +4,7 @@ import TargetRegistry from './targets/registry.js';
 const targetRegistry = new TargetRegistry();
 
 const isEndpointValid = (endpoint) => {
-  if (typeof endpoint !== 'string') return false;
-  if (endpoint.length === 0) return false;
+  if (typeof endpoint !== 'string' || endpoint.length === 0) return false;
   return endpoint[0] === '/';
 };
 
@@ -14,6 +13,8 @@ const isShootValid = (shoot) => typeof shoot === 'function';
 class Target {
   constructor(base = '') {
     this.base = base;
+    this.useCache = false;
+    this.clearCache = false;
     this.targetMiddlewares = [];
   }
 
@@ -47,6 +48,19 @@ class Target {
       middlewares: this.targetMiddlewares.concat(validMiddlewares),
       shoot,
     });
+
+    this.useCache = false;
+    this.clearCache = false;
+  }
+
+  withCache(groupId = this.base, ttl = Infinity) {
+    this.useCache = true;
+    return this;
+  }
+
+  purgeCache() {
+    this.clearCache = true;
+    return this;
   }
 }
 

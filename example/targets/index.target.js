@@ -2,10 +2,16 @@ import { Target } from 'te.js';
 
 const target = new Target();
 
-target.register('/hello', (ammo) => {
-  throw new Error('Error thrown to demonstrate robust error handling of te.js');
+target.withCache("group-id").register('/hello', (ammo) => {
   ammo.fire({
     status: 200,
-    body: 'Hello, World!'
+    body: 'Hello, World!',
+  });
+});
+
+target.purgeCache("group-id").register('/hello', (ammo) => {
+  ammo.fire({
+    status: 200,
+    body: 'Hello, World!',
   });
 });
