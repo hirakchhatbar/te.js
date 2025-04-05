@@ -101,7 +101,7 @@ class Tejas {
       .then((targetFiles) => {
         if (targetFiles) {
           for (const file of targetFiles) {
-            import(pathToFileURL(`${file.path}/${file.name}`));
+            import(pathToFileURL(`${file.parentPath}/${file.name}`));
           }
         }
       })
