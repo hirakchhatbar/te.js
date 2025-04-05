@@ -1,14 +1,12 @@
-import isMiddlewareValid from './targets/middleware-validator.js';
-import TargetRegistry from './targets/registry.js';
+import TejLogger from 'tej-logger';
 
+import isMiddlewareValid from './targets/middleware-validator.js';
+import Endpoint from './endpoint.js';
+
+import TargetRegistry from './targets/registry.js';
 const targetRegistry = new TargetRegistry();
 
-const isEndpointValid = (endpoint) => {
-  if (typeof endpoint !== 'string' || endpoint.length === 0) return false;
-  return endpoint[0] === '/';
-};
-
-const isShootValid = (shoot) => typeof shoot === 'function';
+const logger = new TejLogger('Target');
 
 class Target {
   constructor(base = '') {
@@ -26,6 +24,7 @@ class Target {
   midair() {
     if (!arguments) return;
     const middlewares = [...arguments];
+
     const validMiddlewares = middlewares.filter(isMiddlewareValid);
     this.targetMiddlewares = this.targetMiddlewares.concat(validMiddlewares);
   }
@@ -34,33 +33,21 @@ class Target {
     let args = arguments;
     if (!args) return;
 
-    const endpoint = args[0];
-    if (!isEndpointValid(endpoint)) return;
-
+    const path = args[0];
     const shoot = args[args.length - 1];
-    if (!isShootValid(shoot)) return;
-
     const middlewares = Array.from(args).slice(1, args.length - 1);
-    const validMiddlewares = middlewares.filter(isMiddlewareValid);
 
-    targetRegistry.targets.push({
-      endpoint: this.base + endpoint,
-      middlewares: this.targetMiddlewares.concat(validMiddlewares),
-      shoot,
-    });
+    try {
+      const endpoint = new Endpoint();
+      endpoint
+        .setPath(this.base, path)
+        .setMiddlewares(middlewares)
+        .setHandler(shoot);
 
-    this.useCache = false;
-    this.clearCache = false;
-  }
-
-  withCache(groupId = this.base, ttl = Infinity) {
-    this.useCache = true;
-    return this;
-  }
-
-  purgeCache() {
-    this.clearCache = true;
-    return this;
+      targetRegistry.targets.push(endpoint);
+    } catch (error) {
+      logger.error(`Error registering target ${path}: ${error.message}`);
+    }
   }
 }
 

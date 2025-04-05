@@ -12,8 +12,10 @@ const errorLogger = new TejLogger('Tejas.Exception');
 const executeChain = async (target, ammo) => {
   let i = 0;
 
-  const chain = targetRegistry.globalMiddlewares.concat(target.middlewares);
-  chain.push(target.shoot);
+  const chain = targetRegistry.globalMiddlewares.concat(
+    target.getMiddlewares(),
+  );
+  chain.push(target.getHandler());
 
   const next = async () => {
     const middleware = chain[i];
@@ -41,7 +43,8 @@ const errorHandler = (ammo, err) => {
 };
 
 const handler = async (req, res) => {
-  const target = targetRegistry.aim(req.method, req.url.split('?')[0]);
+  const url = req.url.split('?')[0];
+  const target = targetRegistry.aim(url);
   const ammo = new Ammo(req, res);
 
   try {
@@ -50,18 +53,11 @@ const handler = async (req, res) => {
 
       if (env('LOG_HTTP_REQUESTS')) logHttpRequest(ammo);
       await executeChain(target, ammo);
-
     } else {
       if (req.url === '/') {
         ammo.defaultEntry();
       } else {
-        errorHandler(
-          ammo,
-          new TejError(
-            404,
-            `No target found for URL ${ammo.fullURL} with method ${ammo.method}`,
-          ),
-        );
+        errorHandler(ammo, new TejError(404, `URL not found: ${url}`));
       }
     }
   } catch (err) {

@@ -32,12 +32,23 @@ class TargetRegistry {
     }
   }
 
-  aim(method, endpoint) {
+  aim(endpoint) {
     return this.targets.find((target) => {
-      return (
-        target.endpoint === endpoint
-      );
+      return target.getPath() === endpoint;
     });
+  }
+
+  getAllEndpoints(grouped) {
+    if (grouped) {
+      return this.targets.reduce((acc, target) => {
+        const group = target.getPath().split('/')[1];
+        if (!acc[group]) acc[group] = [];
+        acc[group].push(target.getPath());
+        return acc;
+      }, {});
+    } else {
+      return this.targets.map((target) => target.getPath());
+    }
   }
 }
 

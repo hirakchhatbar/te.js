@@ -11,6 +11,7 @@ import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 import targetHandler from './server/handler.js';
 import { findTargetFiles } from './utils/auto-register.js';
 import { pathToFileURL } from 'node:url';
+import { log } from 'node:console';
 
 const logger = new TejLogger('Tejas');
 const targetRegistry = new TargetRegistry();
@@ -110,19 +111,20 @@ class Tejas {
    * Register target directories
    */
   registerTargetsDir() {
-    findTargetFiles().then((targetFiles) => {
-      if (targetFiles) {
-        for (const file of targetFiles) {
-          import(pathToFileURL(`${file.path}/${file.name}`));
+    findTargetFiles()
+      .then((targetFiles) => {
+        if (targetFiles) {
+          for (const file of targetFiles) {
+            import(pathToFileURL(`${file.parentPath}/${file.name}`));
+          }
         }
-      }
-
-    }).catch((err) => {
-      logger.error(
-        `Tejas could not register target files. Error: ${err}`,
-        false,
-      );
-    });
+      })
+      .catch((err) => {
+        logger.error(
+          `Tejas could not register target files. Error: ${err}`,
+          false,
+        );
+      });
   }
 
   /*
@@ -137,8 +139,13 @@ class Tejas {
   }
 }
 
-export {default as Target} from './server/target.js';
-export {default as TejFileUploader} from './server/files/uploader.js';
+const listAllEndpoints = (grouped = false) => {
+  return targetRegistry.getAllEndpoints(grouped);
+};
+
+export { default as Target } from './server/target.js';
+export { default as TejFileUploader } from './server/files/uploader.js';
+export { listAllEndpoints };
 export default Tejas;
 
 // TODO Ability to register a target (route) from tejas instance
