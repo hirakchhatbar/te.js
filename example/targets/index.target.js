@@ -5,6 +5,6 @@ const target = new Target();
 target.register('/', (ammo) => {
   ammo.fire({
     status: 200,
-    body: listAllEndpoints(true),
+    body: listAllEndpoints(false),
   });
 });

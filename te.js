@@ -11,6 +11,7 @@ import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 import targetHandler from './server/handler.js';
 import { findTargetFiles } from './utils/auto-register.js';
 import { pathToFileURL } from 'node:url';
+import { log } from 'node:console';
 
 const logger = new TejLogger('Tejas');
 const targetRegistry = new TargetRegistry();

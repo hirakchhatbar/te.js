@@ -43,7 +43,6 @@ class Target {
         .setHandler(shoot);
 
       targetRegistry.targets.push(endpoint);
-      logger.info(`Registered target ${endpoint.getPath()}`);
     } catch (error) {
       logger.error(`Error registering target ${path}: ${error.message}`);
     }

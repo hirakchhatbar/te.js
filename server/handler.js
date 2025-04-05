@@ -43,7 +43,8 @@ const errorHandler = (ammo, err) => {
 };
 
 const handler = async (req, res) => {
-  const target = targetRegistry.aim(req.url.split('?')[0]);
+  const url = req.url.split('?')[0];
+  const target = targetRegistry.aim(url);
   const ammo = new Ammo(req, res);
 
   try {
@@ -56,13 +57,7 @@ const handler = async (req, res) => {
       if (req.url === '/') {
         ammo.defaultEntry();
       } else {
-        errorHandler(
-          ammo,
-          new TejError(
-            404,
-            `No target found for URL ${ammo.fullURL} with method ${ammo.method}`,
-          ),
-        );
+        errorHandler(ammo, new TejError(404, `URL not found: ${url}`));
       }
     }
   } catch (err) {
