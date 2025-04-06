@@ -84,22 +84,51 @@ class Target {
     this.targetMiddlewares = this.targetMiddlewares.concat(validMiddlewares);
   }
 
-  withCache(id = 'tejas-cache', ttl = Infinity) {
+  /**
+   * Enables caching for the next registered endpoint.
+   * The cache configuration will be applied to the next endpoint registered using the register() method.
+   *
+   * @param {string} [id='default'] - The cache identifier. Useful for grouping related cached endpoints.
+   * @param {number} [ttl=Infinity] - Time to live in milliseconds. How long the cache should be valid.
+   * @returns {Target} Returns the target instance for method chaining.
+   * @example
+   * // Cache an endpoint with default settings (infinite TTL)
+   * target.withCache()
+   *   .register('/data', (ammo) => {
+   *     ammo.fire({ data: 'Expensive operation result' });
+   *   });
+   *
+   * // Cache an endpoint with custom TTL and ID
+   * target.withCache('user-data', 3600000) // Cache for 1 hour
+   *   .register('/user/profile', (ammo) => {
+   *     ammo.fire({ user: 'profile data' });
+   *   });
+   */
+  withCache(id = 'default', ttl = Infinity) {
     this.cacheConfig = { enabled: true, id, ttl };
     return this;
   }
 
-  purgeCache(id = 'tejas-cache') {
-    this.cacheConfig = { enabled: false, id, purge: true };
-    return this;
-  }
-
-  withCache(id = 'tejas-cache', ttl = Infinity) {
-    this.cacheConfig = { enabled: true, id, ttl };
-    return this;
-  }
-
-  purgeCache(id = 'tejas-cache') {
+  /**
+   * Purges the cache for the specified cache ID.
+   * This will clear all cached responses for endpoints using the given cache ID.
+   *
+   * @param {string} [id='default'] - The cache identifier to purge.
+   * @returns {Target} Returns the target instance for method chaining.
+   * @example
+   * // Purge all cached responses with default ID
+   * target.purgeCache()
+   *   .register('/refresh', (ammo) => {
+   *     ammo.fire({ message: 'Cache cleared' });
+   *   });
+   *
+   * // Purge cache for a specific group of endpoints
+   * target.purgeCache('user-data')
+   *   .register('/user/refresh', (ammo) => {
+   *     ammo.fire({ message: 'User data cache cleared' });
+   *   });
+   */
+  purgeCache(id = 'default') {
     this.cacheConfig = { enabled: false, id, purge: true };
     return this;
   }
