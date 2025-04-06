@@ -79,33 +79,59 @@ class Ammo {
   }
 
   throw() {
-    const errCode = arguments[0];
-    const err = arguments[1];
+    // Handle different argument patterns
+    const args = Array.from(arguments);
 
-    let errMsg = err instanceof Error ? err.message : err.toString();
-
-    if (errCode && isStatusCode(errCode)) {
-      if (!errMsg) errMsg = toStatusMessage(errCode);
-      this.fire(errCode, errMsg);
+    // Case 1: No arguments provided
+    if (args.length === 0) {
+      this.fire(500, 'Internal Server Error');
       return;
     }
 
-    if (err instanceof Error) {
-      const errMessage = err.message;
+    // Case 2: First argument is a status code
+    if (isStatusCode(args[0])) {
+      const statusCode = args[0];
+      const message = args[1] || toStatusMessage(statusCode);
+      this.fire(statusCode, message);
+      return;
+    }
 
-      if (!isNaN(parseInt(errMessage))) {
-        // Execute when errMessage is a number. Notice ! in front of isNan
-        const message = toStatusMessage(errMessage) ?? toStatusMessage(500);
-        this.fire(message, message);
+    // Case 3: First argument is an Error object
+    if (args[0] instanceof Error) {
+      const error = args[0];
+
+      // Check if error message is a numeric status code
+      if (!isNaN(parseInt(error.message))) {
+        const statusCode = parseInt(error.message);
+        const message = toStatusMessage(statusCode) || toStatusMessage(500);
+        this.fire(statusCode, message);
         return;
       }
 
-      const code = toStatusCode(errMsg) ?? 500;
-      this.fire(code, errMsg);
+      // Use error message as status code if it's a valid status code string
+      const statusCode = toStatusCode(error.message);
+      if (statusCode) {
+        this.fire(statusCode, error.message);
+        return;
+      }
+
+      // Default error handling
+      this.fire(500, error.message);
       return;
     }
 
-    this.fire(err);
+    // Case 4: First argument is a string or other value
+    const errorValue = args[0];
+
+    // Check if the string represents a status code
+    const statusCode = toStatusCode(errorValue);
+    if (statusCode) {
+      this.fire(statusCode, toStatusMessage(statusCode));
+      return;
+    }
+
+    // Default case: treat as error message
+    this.fire(500, errorValue.toString());
   }
 }
 
