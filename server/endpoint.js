@@ -7,6 +7,12 @@ class Endpoint {
     this.path = '';
     this.middlewares = [];
     this.handler = null;
+    this.cacheConfig = {
+      enabled: false,
+      id: null,
+      ttl: Infinity,
+      purge: false,
+    };
   }
 
   setPath(base, path) {
@@ -35,6 +41,10 @@ class Endpoint {
     this.handler = handler;
 
     return this;
+  }
+
+  setCacheConfig(config) {
+    this.cacheConfig = config;
   }
 
   getPath() {

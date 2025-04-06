@@ -4,6 +4,7 @@ import isMiddlewareValid from './targets/middleware-validator.js';
 import Endpoint from './endpoint.js';
 
 import TargetRegistry from './targets/registry.js';
+
 const targetRegistry = new TargetRegistry();
 
 const logger = new TejLogger('Target');
@@ -11,9 +12,9 @@ const logger = new TejLogger('Target');
 class Target {
   constructor(base = '') {
     this.base = base;
-    this.useCache = false;
-    this.clearCache = false;
     this.targetMiddlewares = [];
+
+    this.cacheConfig = null;
   }
 
   base(base) {
@@ -27,6 +28,16 @@ class Target {
 
     const validMiddlewares = middlewares.filter(isMiddlewareValid);
     this.targetMiddlewares = this.targetMiddlewares.concat(validMiddlewares);
+  }
+
+  withCache(id = 'tejas-cache', ttl = Infinity) {
+    this.cacheConfig = { enabled: true, id, ttl };
+    return this;
+  }
+
+  purgeCache(id = 'tejas-cache') {
+    this.cacheConfig = { enabled: false, id, purge: true };
+    return this;
   }
 
   register() {
@@ -44,7 +55,10 @@ class Target {
         .setMiddlewares(middlewares)
         .setHandler(shoot);
 
+      if (this.cacheConfig) endpoint.setCacheConfig(this.cacheConfig);
+
       targetRegistry.targets.push(endpoint);
+      this.cacheConfig = null;
     } catch (error) {
       logger.error(`Error registering target ${path}: ${error.message}`);
     }

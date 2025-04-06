@@ -37,6 +37,8 @@ class Ammo {
 
     // Response related data
     this.dispatchedData = undefined;
+
+    this.cacheConfig = null;
   }
 
   async enhance() {
