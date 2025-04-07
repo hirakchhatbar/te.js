@@ -129,6 +129,7 @@ const listAllEndpoints = (grouped = false) => {
 
 export { default as Target } from './server/target.js';
 export { default as TejFileUploader } from './server/files/uploader.js';
+export { default as TejError } from './server/error.js';
 export { listAllEndpoints };
 export default Tejas;
 

@@ -275,6 +275,16 @@ class Ammo {
       return;
     }
 
+    // Case 3.1: First argument is an instance of TejError
+    if (args[0] instanceof TejError) {
+      const error = args[0];
+      const statusCode = error.code;
+      const message = error.message;
+
+      this.fire(statusCode, message);
+      return;
+    }
+
     // Case 3: First argument is an Error object
     if (args[0] instanceof Error) {
       const error = args[0];
