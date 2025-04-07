@@ -50,9 +50,8 @@ const executeChain = async (target, ammo) => {
 const errorHandler = (ammo, err) => {
   if (env('LOG_EXCEPTIONS')) errorLogger.error(err);
 
-  if (err instanceof TejError) return ammo.throw(err.code, err);
-
-  ammo.throw(500, err);
+  if (err instanceof TejError) return ammo.throw(err);
+  return ammo.throw(err);
 };
 
 /**

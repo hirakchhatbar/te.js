@@ -1,7 +1,7 @@
-import { Target, listAllEndpoints } from 'te.js';
+import { Target, TejError } from 'te.js';
 
 const target = new Target();
 
 target.register('/', (ammo) => {
-  ammo.fire()
+  throw new TejError(500, 'Hello')
 });

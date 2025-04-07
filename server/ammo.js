@@ -285,7 +285,7 @@ class Ammo {
       return;
     }
 
-    // Case 3: First argument is an Error object
+    // Case 3.2: First argument is an Error object
     if (args[0] instanceof Error) {
       const error = args[0];
 
