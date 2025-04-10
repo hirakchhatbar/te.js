@@ -1,4 +1,5 @@
 import isMiddlewareValid from './middleware-validator.js';
+import { standardizePath } from './path-validator.js';
 
 class TargetRegistry {
   constructor() {
@@ -34,7 +35,8 @@ class TargetRegistry {
 
   aim(endpoint) {
     return this.targets.find((target) => {
-      return target.getPath() === endpoint;
+      const standardizedEndpoint = standardizePath(endpoint);
+      return target.getPath() === standardizedEndpoint;
     });
   }
 
