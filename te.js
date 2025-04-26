@@ -41,7 +41,7 @@ class Tejas {
    * @param {String} args.uri - Connection URI string for the database
    * @param {Object} args.options - Options for the database connection
    */
-  connectDatabase(args) {
+  connectDatabase() {
     const db = env('DB_TYPE');
     const uri = env('DB_URI');
 
@@ -93,7 +93,7 @@ class Tejas {
   }
 
   midair() {
-    if (!arguments) return;
+    if (arguments.length === 0) return;
     targetRegistry.addGlobalMiddleware(...arguments);
   }
 
@@ -112,6 +112,10 @@ class Tejas {
           false,
         );
       });
+  }
+
+  withRateLimit(options) {
+    // Options could be an object with store and algorithm
   }
 
   takeoff() {

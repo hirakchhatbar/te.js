@@ -1,4 +1,5 @@
 import RateLimiter from '../base.js';
+import TejError from '../../server/error.js';
 
 /**
  * Sliding Window Rate Limiter Implementation
@@ -38,23 +39,12 @@ import RateLimiter from '../base.js';
  * async function handleRequest(ip) {
  *   const result = await limiter.consume(ip);
  *   if (!result.success) {
- *     throw new Error('Rate limit exceeded');
+ *     throw new TejError(429, 'Rate limit exceeded');
  *   }
  *   // Process request...
  * }
  */
 class SlidingWindowRateLimiter extends RateLimiter {
-  /**
-   * Create a new sliding window rate limiter
-   *
-   * @param {Object} options - Configuration options
-   * @param {Object} [options.slidingWindow] - Sliding window specific options
-   * @param {number} [options.slidingWindow.granularity] - Time precision in seconds
-   * @param {Object} [options.slidingWindow.weights] - Window weights
-   * @param {number} [options.slidingWindow.weights.current] - Weight for current window (0-1)
-   * @param {number} [options.slidingWindow.weights.previous] - Weight for previous window (0-1)
-   * @throws {Error} If required slidingWindow options are missing
-   */
   constructor(options) {
     if (!options.slidingWindowConfig) {
       options.slidingWindowConfig = {}; // Ensure defaults are set in base class
@@ -62,7 +52,8 @@ class SlidingWindowRateLimiter extends RateLimiter {
     super(options);
 
     if (!this.slidingWindowOptions) {
-      throw new Error(
+      throw new TejError(
+        400,
         'SlidingWindowRateLimiter requires slidingWindowConfig options',
       );
     }

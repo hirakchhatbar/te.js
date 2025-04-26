@@ -1,3 +1,5 @@
+import TejError from '../../server/error.js';
+
 /**
  * Abstract base class for rate limiter storage backends
  *
@@ -45,7 +47,7 @@ class RateLimitStorage {
    * }
    */
   async get(key) {
-    throw new Error('Not implemented');
+    throw new TejError(500, 'Not implemented');
   }
 
   /**
@@ -62,7 +64,7 @@ class RateLimitStorage {
    * await storage.set('rl:127.0.0.1', { counter: 5 }, 60);
    */
   async set(key, value, ttl) {
-    throw new Error('Not implemented');
+    throw new TejError(500, 'Not implemented');
   }
 
   /**
@@ -80,7 +82,7 @@ class RateLimitStorage {
    * }
    */
   async increment(key) {
-    throw new Error('Not implemented');
+    throw new TejError(500, 'Not implemented');
   }
 
   /**
@@ -95,7 +97,7 @@ class RateLimitStorage {
    * await storage.delete('rl:127.0.0.1');
    */
   async delete(key) {
-    throw new Error('Not implemented');
+    throw new TejError(500, 'Not implemented');
   }
 }
 

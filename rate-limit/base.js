@@ -42,9 +42,38 @@ class RateLimiter {
    * @param {string} [options.keyPrefix='rl:'] - Prefix for storage keys. Useful when sharing a Redis instance
    *                                           with other applications or when implementing different rate limit
    *                                           rules with different prefixes (e.g., 'rl:api:', 'rl:web:').
-   * @param {Object} [options.redis] - Redis configuration for Redis storage. If not provided, uses in-memory storage.
-   * @param {string} [options.redis.url] - Redis connection URL (e.g., 'redis://localhost:6379')
-   * @param {Object} [options.redis.options] - Additional Redis client options
+   * @param {Object|string} [options.redis] - Redis configuration for Redis storage. If not provided, uses in-memory storage.
+   *                                        See https://redis.io/docs/latest/develop/clients/nodejs/connect/
+   *                                        for detailed Redis client configuration options.
+   *                                        Can be either a connection URL string or a configuration object.
+   * @param {string} [options.redis.username] - Redis username for authentication
+   * @param {string} [options.redis.password] - Redis password for authentication
+   * @param {Object} [options.redis.socket] - Socket connection configuration
+   * @param {string} [options.redis.socket.host] - Redis server hostname
+   * @param {number} [options.redis.socket.port] - Redis server port
+   * @param {boolean} [options.redis.socket.tls] - Whether to use TLS for the connection
+   * @param {function|number|boolean} [options.redis.socket.reconnectStrategy] - Reconnection strategy
+   *                                                                           - false: don't reconnect
+   *                                                                           - number: retry after ms
+   *                                                                           - function: custom strategy
+   *
+   * @example Redis URL connection:
+   * {
+   *   redis: 'redis[s]://[[username][:password]@][host][:port][/db-number]'
+   * }
+   *
+   * @example Redis object configuration:
+   * {
+   *   redis: {
+   *     username: 'default',
+   *     password: 'secret',
+   *     socket: {
+   *       host: 'localhost',
+   *       port: 6379,
+   *       reconnectStrategy: retries => Math.min(retries * 100, 3000)
+   *     }
+   *   }
+   * }
    *
    * @param {Object} [options.tokenBucketConfig] - Token bucket algorithm specific options.
    *                                              This algorithm provides smooth rate limiting with burst capability.
@@ -74,40 +103,6 @@ class RateLimiter {
    *                                                            If false, windows start on first request.
    * @throws {Error} If multiple algorithm options are provided
    *
-   * @example
-   * // Basic usage with in-memory storage and fixed window
-   * const limiter = new RateLimiter({
-   *   maxRequests: 100,
-   *   timeWindowSeconds: 60
-   * });
-   *
-   * @example
-   * // Using Redis storage with token bucket algorithm
-   * const limiter = new RateLimiter({
-   *   maxRequests: 100,
-   *   timeWindowSeconds: 60,
-   *   redis: {
-   *     url: 'redis://localhost:6379'
-   *   },
-   *   tokenBucketConfig: {
-   *     refillRate: 2,  // 2 tokens per second
-   *     burstSize: 150  // Allow bursts up to 150 requests
-   *   }
-   * });
-   *
-   * @example
-   * // Using sliding window with custom weights
-   * const limiter = new RateLimiter({
-   *   maxRequests: 100,
-   *   timeWindowSeconds: 60,
-   *   slidingWindowConfig: {
-   *     granularity: 1,
-   *     weights: {
-   *       current: 0.7,  // Current minute counts 70%
-   *       previous: 0.3  // Previous minute counts 30%
-   *     }
-   *   }
-   * });
    */
   constructor(options) {
     // Common options for all algorithms
@@ -120,19 +115,22 @@ class RateLimiter {
 
     // Only one algorithm can be active per instance
     if (options?.tokenBucketConfig && options?.slidingWindowConfig) {
-      throw new Error(
+      throw new TejError(
+        400,
         'Cannot use multiple rate limiting algorithms. Choose either tokenBucketConfig or slidingWindowConfig or fixedWindowConfig.',
       );
     }
 
     if (options?.tokenBucketConfig && options?.fixedWindowConfig) {
-      throw new Error(
+      throw new TejError(
+        500,
         'Cannot use multiple rate limiting algorithms. Choose either tokenBucketConfig or slidingWindowConfig or fixedWindowConfig.',
       );
     }
 
     if (options?.slidingWindowConfig && options?.fixedWindowConfig) {
-      throw new Error(
+      throw new TejError(
+        500,
         'Cannot use multiple rate limiting algorithms. Choose either tokenBucketConfig or slidingWindowConfig or fixedWindowConfig.',
       );
     }
@@ -190,7 +188,7 @@ class RateLimiter {
    * @throws {Error} If not implemented by child class
    */
   async consume(identifier) {
-    throw new Error('Not implemented');
+    throw new TejError(500, 'Not implemented');
   }
 
   /**
