@@ -2,8 +2,16 @@ import redis from './redis.js';
 import mongodb from './mongodb.js';
 import TejError from '../server/error.js';
 import TejLogger from 'tej-logger';
+import { createHash } from 'crypto';
 
 const logger = new TejLogger('DatabaseManager');
+
+// Helper function to create a hash of the configuration
+function createConfigHash(dbType, config) {
+  const hash = createHash('sha256');
+  hash.update(dbType + JSON.stringify(config));
+  return hash.digest('hex');
+}
 
 class DatabaseManager {
   static #instance = null;
@@ -43,7 +51,7 @@ class DatabaseManager {
    * @returns {Promise<any>} Database client instance
    */
   async initializeConnection(dbType, config) {
-    const key = `${dbType}-${JSON.stringify(config)}`;
+    const key = createConfigHash(dbType, config);
 
     // If a connection already exists for this config, return it
     if (this.#connections.has(key)) {
@@ -86,7 +94,7 @@ class DatabaseManager {
    * @returns {any} Database client instance
    */
   getConnection(dbType, config) {
-    const key = `${dbType}-${JSON.stringify(config)}`;
+    const key = createConfigHash(dbType, config);
     const connection = this.#connections.get(key);
     if (!connection) {
       throw new TejError(
@@ -104,7 +112,7 @@ class DatabaseManager {
    * @returns {Promise<void>}
    */
   async closeConnection(dbType, config) {
-    const key = `${dbType}-${JSON.stringify(config)}`;
+    const key = createConfigHash(dbType, config);
     if (!this.#connections.has(key)) {
       return;
     }
@@ -157,7 +165,7 @@ class DatabaseManager {
    * @returns {boolean}
    */
   hasConnection(dbType, config) {
-    const key = `${dbType}-${JSON.stringify(config)}`;
+    const key = createConfigHash(dbType, config);
     return this.#connections.has(key);
   }
 }
