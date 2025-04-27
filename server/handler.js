@@ -4,9 +4,8 @@ import logHttpRequest from '../utils/request-logger.js';
 
 import Ammo from './ammo.js';
 import TejError from './error.js';
-import TargetRegistry from './targets/registry.js';
+import targetRegistry from './targets/registry.js';
 
-const targetRegistry = new TargetRegistry();
 const errorLogger = new TejLogger('Tejas.Exception');
 
 /**

@@ -1,35 +1,70 @@
+import { env } from 'tej-env';
+
 async function parseDataBasedOnContentType(req) {
+  // Validate content-type header exists
+  if (!req.headers['content-type']) {
+    throw new BodyParserError('Content-Type header is missing', 400);
+  }
+
+  const contentType = req.headers['content-type'].toLowerCase();
+
   // Check if content type is JSON
-  if (req.headers['content-type'] === 'application/json') {
+  if (contentType === 'application/json') {
     return await parseJSONRequestBody(req);
   }
 
   // Check if content type is URL encoded
-  if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
+  if (contentType === 'application/x-www-form-urlencoded') {
     return await parseUrlEncodedData(req);
   }
 
   // Check if content type is multipart form data
-  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
+  if (contentType.startsWith('multipart/form-data')) {
     return await parseFormData(req);
   }
 
-  return null;
+  throw new BodyParserError(`Unsupported content type: ${contentType}`, 415);
 }
 
 function parseJSONRequestBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
+    let size = 0;
+    const maxSize = env('BODY_MAX_SIZE');
+    const timeout = setTimeout(() => {
+      reject(new BodyParserError('Request timeout', 408));
+    }, env('BODY_TIMEOUT'));
+
     req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxSize) {
+        clearTimeout(timeout);
+        reject(new BodyParserError('Request entity too large', 413));
+        req.destroy();
+        return;
+      }
       body += chunk.toString();
     });
 
+    req.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(new BodyParserError(`Request error: ${err.message}`, 400));
+    });
+
     req.on('end', () => {
+      clearTimeout(timeout);
       try {
+        if (!body) {
+          resolve({});
+          return;
+        }
         const jsonData = JSON.parse(body);
-        resolve(jsonData); // Resolve promise with the parsed JSON
+        if (typeof jsonData !== 'object') {
+          throw new Error('Invalid JSON structure');
+        }
+        resolve(jsonData);
       } catch (err) {
-        reject(new Error('Invalid JSON')); // Reject promise if JSON parsing fails
+        reject(new BodyParserError(`Invalid JSON: ${err.message}`, 400));
       }
     });
   });
@@ -38,15 +73,41 @@ function parseJSONRequestBody(req) {
 function parseUrlEncodedData(req) {
   return new Promise((resolve, reject) => {
     let body = '';
+    let size = 0;
+    const maxSize = env('BODY_MAX_SIZE');
+    const timeout = setTimeout(() => {
+      reject(new BodyParserError('Request timeout', 408));
+    }, env('BODY_TIMEOUT'));
 
     req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxSize) {
+        clearTimeout(timeout);
+        reject(new BodyParserError('Request entity too large', 413));
+        req.destroy();
+        return;
+      }
       body += chunk.toString();
     });
 
+    req.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(new BodyParserError(`Request error: ${err.message}`, 400));
+    });
+
     req.on('end', () => {
-      const data = new URLSearchParams(body);
-      const parsedData = Object.fromEntries(data);
-      resolve(parsedData);
+      clearTimeout(timeout);
+      try {
+        if (!body) {
+          resolve({});
+          return;
+        }
+        const data = new URLSearchParams(body);
+        const parsedData = Object.fromEntries(data);
+        resolve(parsedData);
+      } catch (err) {
+        reject(new BodyParserError('Invalid URL encoded data', 400));
+      }
     });
   });
 }
@@ -54,40 +115,106 @@ function parseUrlEncodedData(req) {
 function parseFormData(req) {
   return new Promise((resolve, reject) => {
     let body = '';
-
-    let files = [];
-    let fields = [];
+    let size = 0;
+    const maxSize = env('BODY_MAX_SIZE');
+    const timeout = setTimeout(() => {
+      reject(new BodyParserError('Request timeout', 408));
+    }, env('BODY_TIMEOUT'));
 
     req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxSize) {
+        clearTimeout(timeout);
+        reject(new BodyParserError('Request entity too large', 413));
+        req.destroy();
+        return;
+      }
       body += chunk.toString();
     });
 
+    req.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(new BodyParserError(`Request error: ${err.message}`, 400));
+    });
+
     req.on('end', () => {
-      // Detect and parse multipart form data
-      if (req.headers['content-type'].startsWith('multipart/form-data')) {
-        const boundary =
-          '--' + req.headers['content-type'].split('boundary=')[1];
+      clearTimeout(timeout);
+      try {
+        if (!body.trim()) {
+          resolve([]);
+          return;
+        }
+
+        const contentType = req.headers['content-type'];
+        const boundaryMatch = contentType.match(
+          /boundary=(?:"([^"]+)"|([^;]+))/i,
+        );
+
+        if (!boundaryMatch) {
+          throw new Error('Missing boundary in content-type');
+        }
+
+        const boundary = '--' + (boundaryMatch[1] || boundaryMatch[2]);
         const parts = body
           .split(boundary)
           .filter((part) => part.trim() !== '' && part.trim() !== '--');
 
         const parsedData = parts.map((part) => {
-          const partData = part.split('\r\n\r\n');
-          const headersPart = partData[0].trim().split('\r\n');
-          const valuePart = partData[1].trim();
-          let headers = {};
+          const [headerString, ...contentParts] = part.split('\r\n\r\n');
+          if (!headerString || contentParts.length === 0) {
+            throw new Error('Malformed multipart part');
+          }
 
-          headersPart.forEach((header) => {
-            const [key, value] = header.split(': ');
-            headers[key.toLowerCase()] = value;
+          const headers = {};
+          const headerLines = headerString.trim().split('\r\n');
+
+          headerLines.forEach((line) => {
+            const [key, ...valueParts] = line.split(': ');
+            if (!key || valueParts.length === 0) {
+              throw new Error('Malformed header');
+            }
+            headers[key.toLowerCase()] = valueParts.join(': ');
           });
-          return { headers, value: valuePart };
+
+          const value = contentParts.join('\r\n\r\n').replace(/\r\n$/, '');
+
+          // Parse content-disposition
+          const disposition = headers['content-disposition'];
+          if (!disposition) {
+            throw new Error('Missing content-disposition header');
+          }
+
+          const nameMatch = disposition.match(/name="([^"]+)"/);
+          const filename = disposition.match(/filename="([^"]+)"/);
+
+          return {
+            name: nameMatch ? nameMatch[1] : undefined,
+            filename: filename ? filename[1] : undefined,
+            headers,
+            value,
+          };
         });
 
         resolve(parsedData);
+      } catch (err) {
+        reject(
+          new BodyParserError(
+            `Invalid multipart form data: ${err.message}`,
+            400,
+          ),
+        );
       }
     });
   });
 }
 
+class BodyParserError extends Error {
+  constructor(message, statusCode = 400) {
+    super(message);
+    this.name = 'BodyParserError';
+    this.statusCode = statusCode;
+  }
+}
+
+export { BodyParserError };
 export default parseDataBasedOnContentType;

@@ -162,13 +162,17 @@ te.js provides a flexible configuration system with multiple sources and priorit
 3. **tejas.config.json** (Lowest Priority)
    ```json
    {
-     "port": 3000,
+     "port": 1403,
      "log": {
        "http_requests": true,
        "exceptions": true
      },
      "dir": {
        "targets": "targets"
+     },
+     "body": {
+       "max_size": 5242880, // 5MB in bytes
+       "timeout": 15000 // 15 seconds
      }
    }
    ```

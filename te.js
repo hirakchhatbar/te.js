@@ -3,7 +3,8 @@ import { createServer } from 'node:http';
 import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
 
-import TargetRegistry from './server/targets/registry.js';
+import targetRegistry from './server/targets/registry.js';
+import dbManager from './database/index.js';
 
 import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
@@ -12,8 +13,6 @@ import { findTargetFiles } from './utils/auto-register.js';
 import { pathToFileURL } from 'node:url';
 
 const logger = new TejLogger('Tejas');
-const targetRegistry = new TargetRegistry();
-
 /**
  * Main Tejas Framework Class
  *
@@ -82,6 +81,8 @@ class Tejas {
 
     // Load defaults
     if (!env('PORT')) setEnv('PORT', 1403);
+    if (!env('BODY_MAX_SIZE')) setEnv('BODY_MAX_SIZE', 10 * 1024 * 1024); // 10MB default
+    if (!env('BODY_TIMEOUT')) setEnv('BODY_TIMEOUT', 30000); // 30 seconds default
   }
 
   setupDatabaseConnections() {
@@ -95,9 +96,6 @@ class Tejas {
       }
       return acc;
     }, {});
-
-    // Initialize DatabaseManager
-    const dbManager = DatabaseManager.getInstance();
 
     // Connect to each configured database
     for (const [dbType, dbConfig] of Object.entries(config)) {

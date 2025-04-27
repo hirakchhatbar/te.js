@@ -3,8 +3,7 @@ import TejLogger from 'tej-logger';
 import isMiddlewareValid from './targets/middleware-validator.js';
 import Endpoint from './endpoint.js';
 
-import TargetRegistry from './targets/registry.js';
-const targetRegistry = new TargetRegistry();
+import targetRegistry from './targets/registry.js';
 
 const logger = new TejLogger('Target');
 

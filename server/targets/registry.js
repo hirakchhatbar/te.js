@@ -54,4 +54,5 @@ class TargetRegistry {
   }
 }
 
-export default TargetRegistry;
+const targetRegistry = new TargetRegistry();
+export default targetRegistry;

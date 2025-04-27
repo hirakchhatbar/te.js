@@ -169,6 +169,5 @@ class DatabaseManager {
   }
 }
 
-// Export the singleton instance
 const dbManager = DatabaseManager.getInstance();
 export default dbManager;
