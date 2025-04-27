@@ -15,6 +15,7 @@
   "dependencies": {
     "cors": "^2.8.5",
     "mongoose": "^8.3.1",
+    "redis": "^4.7.0",
     "te.js": "file:..",
     "tej-env": "^1.0.2"
   }

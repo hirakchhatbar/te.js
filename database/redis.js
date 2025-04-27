@@ -1,26 +1,24 @@
-import { createClient, createCluster } from 'redis';
 import { createHash } from 'crypto';
-import { spawn } from 'child_process';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { logger } from 'tej-logger';
 import TejError from '../server/error.js';
+import TejLogger from 'tej-logger';
+import { pathToFileURL } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const packageJsonPath = path.join(process.cwd(), 'package.json');
+const packagePath = `${process.cwd()}/node_modules/redis/dist/index.js`;
+
+const logger = new TejLogger('RedisConnectionManager');
 
 function checkRedisInstallation() {
-  const packageJsonPath = path.join(__dirname, '..', 'package.json');
-  const nodeModulesPath = path.join(__dirname, '..', 'node_modules', 'redis');
-
   try {
     // Check if redis exists in package.json
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const inPackageJson = !!packageJson.dependencies?.redis;
 
     // Check if redis exists in node_modules
-    const inNodeModules = fs.existsSync(nodeModulesPath);
+    const inNodeModules = fs.existsSync(packagePath);
 
     return {
       needsInstall: !inPackageJson || !inNodeModules,
@@ -31,6 +29,7 @@ function checkRedisInstallation() {
           : null,
     };
   } catch (error) {
+    logger.error(error, true);
     return { needsInstall: true, reason: 'error checking installation' };
   }
 }
@@ -56,7 +55,7 @@ function installRedisSync() {
     logger.info(`Tejas will install redis (${reason})...`);
 
     const command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const result = spawn.sync(command, ['install', 'redis'], {
+    const result = spawnSync(command, ['install', 'redis'], {
       stdio: 'inherit',
       shell: true,
     });
@@ -76,7 +75,7 @@ function installRedisSync() {
       process.stdout.write('\r');
       clearInterval(intervalId);
     }
-    logger.error('Error installing redis:', error);
+    logger.error(error, true);
     return false;
   }
 }
@@ -118,8 +117,6 @@ class RedisConnectionManager {
 
   /**
    * Create a hash from the config object
-   * @param {Object} config - Redis configuration
-   * @returns {string} Hash string
    */
   #createConfigHash(config) {
     const normalizedConfig = {
@@ -150,47 +147,107 @@ class RedisConnectionManager {
       }
     }
 
+    // Set default values for optional parameters
+    config = {
+      isCluster: false,
+      ...config,
+    };
+
     const configHash = this.#createConfigHash(config);
 
     if (this.#clients.has(configHash)) {
       return this.#clients.get(configHash);
     }
 
-    const { isCluster = false, url, options = {} } = config;
+    const { isCluster = false, options = {} } = config;
     let client;
 
     try {
+      // Import the Redis client dynamically to avoid circular dependencies
+      const { createClient, createCluster } = await import(
+        pathToFileURL(packagePath)
+      );
+
       if (isCluster) {
         client = createCluster({
-          rootNodes: Array.isArray(url) ? url : [url],
           ...options,
         });
       } else {
         client = createClient({
-          url,
           ...options,
         });
       }
 
-      // Handle connection events
-      client.on('error', (err) =>
-        console.error(`Redis connection error:`, err),
-      );
-      client.on('connect', () => {
-        console.log(`Redis connected`);
-        this.#connectionCount++;
-      });
-      client.on('ready', () => console.log(`Redis ready`));
-      client.on('end', () => {
-        console.log(`Redis connection closed`);
-        this.#connectionCount--;
+      let connectionTimeout;
+      let hasConnected = false;
+      let connectionAttempts = 0;
+      const maxRetries = options.maxRetries || 3;
+
+      // Create a promise that will resolve when connected or reject on fatal errors
+      const connectionPromise = new Promise((resolve, reject) => {
+        // Set a connection timeout
+        connectionTimeout = setTimeout(() => {
+          if (!hasConnected) {
+            client.quit().catch(() => {});
+            reject(new TejError(500, 'Redis connection timeout'));
+          }
+        }, options.connectTimeout || 10000);
+
+        // Handle connection events
+        client.on('error', (err) => {
+          logger.error(`Redis connection error: ${err}`, true);
+          if (!hasConnected && connectionAttempts >= maxRetries) {
+            clearTimeout(connectionTimeout);
+            client.quit().catch(() => {});
+            reject(
+              new TejError(
+                500,
+                `Redis connection failed after ${maxRetries} attempts: ${err.message}`,
+              ),
+            );
+          }
+          connectionAttempts++;
+        });
+
+        client.on('connect', () => {
+          hasConnected = true;
+          clearTimeout(connectionTimeout);
+          logger.info(
+            `Redis connected on ${client?.options?.url ?? client?.options?.socket?.host}`,
+          );
+          this.#connectionCount++;
+        });
+
+        client.on('ready', () => {
+          logger.info('Redis ready');
+          resolve(client);
+        });
+
+        client.on('end', () => {
+          logger.info('Redis connection closed');
+          this.#connectionCount--;
+          this.#clients.delete(configHash);
+        });
       });
 
       await client.connect();
+      await connectionPromise;
+
       this.#clients.set(configHash, client);
       return client;
     } catch (error) {
-      console.error(`Failed to create Redis connection:`, error);
+      if (client) {
+        try {
+          await client.quit();
+        } catch (quitError) {
+          logger.error(
+            `Error while cleaning up Redis connection: ${quitError}`,
+            true,
+          );
+        }
+      }
+      this.#clients.delete(configHash);
+      logger.error(`Failed to create Redis connection: ${error}`, true);
       throw new TejError(
         500,
         `Failed to create Redis connection: ${error.message}`,

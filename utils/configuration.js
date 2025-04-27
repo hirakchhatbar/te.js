@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { getAllEnv } from 'tej-env';
 
 const loadConfigFile = () => {
   try {
@@ -18,24 +19,8 @@ const keysToUpperCase = (obj) => {
       const value = obj[key];
       const upperKey = key.toUpperCase();
 
-      if (
-        typeof value === 'object' &&
-        value !== null &&
-        !Array.isArray(value)
-      ) {
-        if (key === 'db' || upperKey === 'DB') {
-          // Special handling for database configurations
-          // Keep the database type key in lowercase but uppercase its properties
-          standardObj[upperKey] = Object.entries(value).reduce(
-            (acc, [dbType, dbConfig]) => {
-              acc[dbType.toLowerCase()] = keysToUpperCase(dbConfig);
-              return acc;
-            },
-            {},
-          );
-        } else {
-          standardObj[upperKey] = keysToUpperCase(value);
-        }
+      if (typeof value === 'object' && value !== null) {
+        standardObj[upperKey] = keysToUpperCase(value);
       } else {
         standardObj[upperKey] = value;
       }
@@ -50,20 +35,17 @@ const flattenObject = (obj, prefix = '') => {
 
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
-      const newKey = prefix.length ? `${prefix}_${key}` : key;
       const value = obj[key];
+      const newKey = prefix ? `${prefix}_${key}` : key;
 
       if (
         typeof value === 'object' &&
         value !== null &&
-        !Array.isArray(value)
+        !Array.isArray(value) &&
+        Object.keys(value).length > 0
       ) {
-        if (key === 'DB' || key.startsWith('DB_')) {
-          // Keep database configurations nested
-          flattened[newKey] = value;
-        } else {
-          Object.assign(flattened, flattenObject(value, newKey));
-        }
+        const nested = flattenObject(value, newKey);
+        Object.assign(flattened, nested);
       } else {
         flattened[newKey] = value;
       }

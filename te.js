@@ -32,6 +32,13 @@ class Tejas {
    * @param {boolean} [args.log.http_requests] - Whether to log incoming HTTP requests
    * @param {boolean} [args.log.exceptions] - Whether to log exceptions
    * @param {Object} [args.db] - Database configuration options
+   * @param {Object} [args.withRedis] - Redis connection configuration
+   * @param {boolean} [args.withRedis.isCluster=false] - Whether to use Redis Cluster
+   * @param {Object} [args.withRedis.socket] - Redis socket connection options
+   * @param {string} [args.withRedis.socket.host] - Redis server hostname
+   * @param {number} [args.withRedis.socket.port] - Redis server port
+   * @param {boolean} [args.withRedis.socket.tls] - Whether to use TLS for connection
+   * @param {string} [args.withRedis.url] - Redis connection URL (alternative to socket config)
    */
   constructor(args) {
     if (Tejas.instance) return Tejas.instance;
@@ -41,9 +48,6 @@ class Tejas {
 
     this.generateConfiguration();
     this.registerTargetsDir();
-
-    // Initialize database connections if configured
-    this.setupDatabaseConnections();
   }
 
   /**
@@ -65,36 +69,17 @@ class Tejas {
     const userVars = standardizeObj(this.options);
 
     const config = { ...configVars, ...envVars, ...userVars };
+
     for (const key in config) {
       if (config.hasOwnProperty(key)) {
         setEnv(key, config[key]);
       }
     }
 
-    // Load defaults
+    // Set default values for required configuration if not provided
     if (!env('PORT')) setEnv('PORT', 1403);
     if (!env('BODY_MAX_SIZE')) setEnv('BODY_MAX_SIZE', 10 * 1024 * 1024); // 10MB default
     if (!env('BODY_TIMEOUT')) setEnv('BODY_TIMEOUT', 30000); // 30 seconds default
-  }
-
-  setupDatabaseConnections() {
-    // Get database configuration from environment
-    const config = Object.entries(env()).reduce((acc, [key, value]) => {
-      // Look for DB_* environment variables
-      if (key.startsWith('DB_')) {
-        const [_, dbType, configKey] = key.toLowerCase().split('_');
-        if (!acc[dbType]) acc[dbType] = {};
-        acc[dbType][configKey] = value;
-      }
-      return acc;
-    }, {});
-
-    // Connect to each configured database
-    for (const [dbType, dbConfig] of Object.entries(config)) {
-      dbManager.initializeConnection(dbType, dbConfig).catch((err) => {
-        logger.error(`Failed to initialize ${dbType} connection: ${err}`);
-      });
-    }
   }
 
   /**
@@ -148,35 +133,78 @@ class Tejas {
   }
 
   /**
-   * Enables rate limiting for the application
-   *
-   * @param {Object} options - Rate limiting configuration
-   * @param {string} [options.store='memory'] - Storage backend for rate limiting
-   * @param {string} [options.algorithm='sliding-window'] - Rate limiting algorithm
-   * @description
-   * Currently a placeholder for future rate limiting implementation.
-   * Will support multiple algorithms and storage backends.
-   */
-  setGlobalRateLimit(options) {
-    // TODO: Implement rate limiting functionality using the provided options
-    // Options could be an object with store and algorithm
-  }
-
-  /**
    * Starts the Tejas server
    *
+   * @param {Object} [options] - Server configuration options
+   * @param {Object} [options.withRedis] - Redis connection options
+   * @param {boolean} [options.withRedis.isCluster=false] - Whether this is a Redis cluster connection
+   * @param {Object} [options.withRedis.url] - Redis connection URL and other options (https://redis.io/docs/latest/develop/clients/nodejs/connect/)
+   * @param {Object} [options.withMongo] - MongoDB connection options (https://www.mongodb.com/docs/drivers/node/current/fundamentals/connection/)
    * @description
    * Creates and starts an HTTP server on the configured port.
+   * Optionally initializes Redis and/or MongoDB connections if configuration is provided.
+   * For Redis, accepts cluster flag and all connection options supported by node-redis package.
+   * For MongoDB, accepts all connection options supported by the official MongoDB Node.js driver.
    *
    * @example
    * const app = new Tejas();
+   *
+   * // Start server with Redis and MongoDB
+   * app.takeoff({
+   *   withRedis: {
+   *     url: 'redis://alice:foobared@awesome.redis.server:6380',
+   *     isCluster: false
+   *   },
+   *   withMongo: { url: 'mongodb://localhost:27017/mydatabase' }
+   * });
+   *
+   * // Start server with only Redis using defaults
+   * app.takeoff({
+   *   withRedis: { url: 'redis://localhost:6379' }
+   * });
+   *
+   * // Start server without databases
    * app.takeoff(); // Server starts on default port 1403
    */
-  takeoff() {
+  takeoff({ withRedis, withMongo } = {}) {
     this.engine = createServer(targetHandler);
-    this.engine.listen(env('PORT'), () => {
+    this.engine.listen(env('PORT'), async () => {
       logger.info(`Took off from port ${env('PORT')}`);
+
+      if (withRedis) await dbManager.initializeConnection('redis', withRedis);
+      if (withMongo) await dbManager.initializeConnection('mongodb', withMongo);
     });
+
+    this.engine.on('error', (err) => {
+      logger.error(`Server error: ${err}`);
+    });
+  }
+
+  withRedis(config) {
+    if (config) {
+      dbManager.initializeConnection('redis', config);
+    } else {
+      logger.warn(
+        'No Redis configuration provided. Skipping Redis connection.',
+      );
+    }
+    return this;
+  }
+
+  withMongo(config) {
+    if (config) {
+      dbManager.initializeConnection('mongodb', config);
+    } else {
+      logger.warn(
+        'No MongoDB configuration provided. Skipping MongoDB connection.',
+      );
+    }
+    return this;
+  }
+
+  withRateLimit(config) {
+    this.setGlobalRateLimit(config);
+    return this;
   }
 }
 

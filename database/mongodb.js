@@ -1,14 +1,15 @@
 import { createHash } from 'crypto';
-import mongoose from 'mongoose';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { logger } from 'tej-logger';
+import TejLogger from 'tej-logger';
 import TejError from '../server/error.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const logger = new TejLogger('MongoDBConnectionManager');
 
 function checkMongooseInstallation() {
   const packageJsonPath = path.join(__dirname, '..', 'package.json');
@@ -162,6 +163,9 @@ class MongoDBConnectionManager {
     const { uri, options = {} } = config;
 
     try {
+      // Import mongoose dynamically to avoid circular dependencies
+      const mongoose = await import('mongoose').then((mod) => mod.default);
+
       // Create a new connection
       const connection = await mongoose.createConnection(uri, options);
 
