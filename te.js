@@ -196,6 +196,7 @@ class Tejas {
    * Will support multiple algorithms and storage backends.
    */
   enableRateLimit(options) {
+    // TODO: Implement rate limiting functionality using the provided options
     // Options could be an object with store and algorithm
   }
 

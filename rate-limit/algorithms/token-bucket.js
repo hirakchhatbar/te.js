@@ -63,7 +63,7 @@ class TokenBucketRateLimiter extends RateLimiter {
   async consume(identifier) {
     const key = this.getKey(identifier);
     const now = Date.now();
-    const options = this.getAlgorithmOptions('token-bucket');
+    const options = this.getAlgorithmOptions('tokenBucketConfig');
 
     const stored = await this.storage.get(key);
     if (!stored) {
