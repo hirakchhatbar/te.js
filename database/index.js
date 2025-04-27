@@ -1,5 +1,6 @@
 import redis from './redis.js';
 import mongodb from './mongodb.js';
+import TejError from '../server/error.js';
 
 class DatabaseManager {
   static #instance = null;
@@ -14,7 +15,10 @@ class DatabaseManager {
     }
 
     if (!DatabaseManager.#isInitializing) {
-      throw new Error('Use DatabaseManager.getInstance() to get the instance');
+      throw new TejError(
+        500,
+        'Use DatabaseManager.getInstance() to get the instance',
+      );
     }
 
     DatabaseManager.#isInitializing = false;
@@ -36,7 +40,7 @@ class DatabaseManager {
    * @param {string} [connectionName='default'] - Unique name for this connection
    * @returns {Promise<any>} Database client instance
    */
-  async initializeConnection(dbType, config, connectionName = 'default') {
+  async initializeConnection(dbType, config, connectionName = 'global') {
     const connectionKey = `${dbType}:${connectionName}`;
 
     // Return existing connection if available
@@ -54,7 +58,7 @@ class DatabaseManager {
           client = await mongodb.createConnection(config);
           break;
         default:
-          throw new Error(`Unsupported database type: ${dbType}`);
+          throw new TejError(400, `Unsupported database type: ${dbType}`);
       }
 
       this.#connections.set(connectionKey, client);
@@ -81,7 +85,7 @@ class DatabaseManager {
     if (!connectionName) {
       connectionName = this.#defaultConnections.get(dbType);
       if (!connectionName) {
-        throw new Error(`No default connection found for ${dbType}`);
+        throw new TejError(404, `No default connection found for ${dbType}`);
       }
     }
 
@@ -89,7 +93,8 @@ class DatabaseManager {
     const connection = this.#connections.get(connectionKey);
 
     if (!connection) {
-      throw new Error(
+      throw new TejError(
+        404,
         `No connection found for ${dbType} with name ${connectionName}`,
       );
     }

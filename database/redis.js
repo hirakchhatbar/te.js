@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from 'tej-logger';
+import TejError from '../server/error.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -93,7 +94,8 @@ class RedisConnectionManager {
     }
 
     if (!RedisConnectionManager.#isInitializing) {
-      throw new Error(
+      throw new TejError(
+        500,
         'Use RedisConnectionManager.getInstance() to get the instance',
       );
     }
@@ -144,7 +146,7 @@ class RedisConnectionManager {
     if (needsInstall) {
       const installed = installRedisSync();
       if (!installed) {
-        throw new Error('Failed to install required redis package');
+        throw new TejError(500, 'Failed to install required redis package');
       }
     }
 
@@ -189,7 +191,10 @@ class RedisConnectionManager {
       return client;
     } catch (error) {
       console.error(`Failed to create Redis connection:`, error);
-      throw error;
+      throw new TejError(
+        500,
+        `Failed to create Redis connection: ${error.message}`,
+      );
     }
   }
 

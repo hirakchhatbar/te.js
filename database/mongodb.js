@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from 'tej-logger';
+import TejError from '../server/error.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,7 +99,8 @@ class MongoDBConnectionManager {
     }
 
     if (!MongoDBConnectionManager.#isInitializing) {
-      throw new Error(
+      throw new TejError(
+        500,
         'Use MongoDBConnectionManager.getInstance() to get the instance',
       );
     }
@@ -147,7 +149,7 @@ class MongoDBConnectionManager {
     if (needsInstall) {
       const installed = installMongooseSync();
       if (!installed) {
-        throw new Error('Failed to install required mongoose package');
+        throw new TejError(500, 'Failed to install required mongoose package');
       }
     }
 
@@ -180,7 +182,10 @@ class MongoDBConnectionManager {
       return connection;
     } catch (error) {
       console.error(`Failed to create MongoDB connection:`, error);
-      throw error;
+      throw new TejError(
+        500,
+        `Failed to create MongoDB connection: ${error.message}`,
+      );
     }
   }
 

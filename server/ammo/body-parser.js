@@ -1,4 +1,5 @@
 import { env } from 'tej-env';
+import TejError from '../error.js';
 
 async function parseDataBasedOnContentType(req) {
   // Validate content-type header exists
@@ -60,11 +61,11 @@ function parseJSONRequestBody(req) {
         }
         const jsonData = JSON.parse(body);
         if (typeof jsonData !== 'object') {
-          throw new Error('Invalid JSON structure');
+          throw new TejError(400, 'Invalid JSON structure');
         }
         resolve(jsonData);
       } catch (err) {
-        reject(new BodyParserError(`Invalid JSON: ${err.message}`, 400));
+        reject(new TejError(400, `Invalid JSON: ${err.message}`));
       }
     });
   });
@@ -151,7 +152,7 @@ function parseFormData(req) {
         );
 
         if (!boundaryMatch) {
-          throw new Error('Missing boundary in content-type');
+          throw new TejError(400, 'Missing boundary in content-type');
         }
 
         const boundary = '--' + (boundaryMatch[1] || boundaryMatch[2]);
@@ -162,7 +163,7 @@ function parseFormData(req) {
         const parsedData = parts.map((part) => {
           const [headerString, ...contentParts] = part.split('\r\n\r\n');
           if (!headerString || contentParts.length === 0) {
-            throw new Error('Malformed multipart part');
+            throw new TejError(400, 'Malformed multipart part');
           }
 
           const headers = {};
@@ -171,7 +172,7 @@ function parseFormData(req) {
           headerLines.forEach((line) => {
             const [key, ...valueParts] = line.split(': ');
             if (!key || valueParts.length === 0) {
-              throw new Error('Malformed header');
+              throw new TejError(400, 'Malformed header');
             }
             headers[key.toLowerCase()] = valueParts.join(': ');
           });
@@ -181,7 +182,7 @@ function parseFormData(req) {
           // Parse content-disposition
           const disposition = headers['content-disposition'];
           if (!disposition) {
-            throw new Error('Missing content-disposition header');
+            throw new TejError(400, 'Missing content-disposition header');
           }
 
           const nameMatch = disposition.match(/name="([^"]+)"/);
@@ -208,11 +209,10 @@ function parseFormData(req) {
   });
 }
 
-class BodyParserError extends Error {
+class BodyParserError extends TejError {
   constructor(message, statusCode = 400) {
-    super(message);
+    super(statusCode, message);
     this.name = 'BodyParserError';
-    this.statusCode = statusCode;
   }
 }
 
