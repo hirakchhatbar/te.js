@@ -32,9 +32,6 @@ class Tejas {
    * @param {Object} [args.log] - Logging configuration
    * @param {boolean} [args.log.http_requests] - Whether to log incoming HTTP requests
    * @param {boolean} [args.log.exceptions] - Whether to log exceptions
-   * @param {Object} [args.db] - Database configuration
-   * @param {string} [args.db.type] - Database type ('mongodb', 'mysql', 'postgres', 'sqlite')
-   * @param {string} [args.db.uri] - Connection URI for the database
    *
    * @example
    * const app = new Tejas({
@@ -42,10 +39,6 @@ class Tejas {
    *   log: {
    *     http_requests: true,
    *     exceptions: true
-   *   },
-   *   db: {
-   *     type: 'mongodb',
-   *     uri: 'mongodb://localhost:27017/myapp'
    *   }
    * });
    */
@@ -57,6 +50,9 @@ class Tejas {
 
     this.generateConfiguration();
     this.registerTargetsDir();
+
+    // Initialize database connections if configured
+    this.setupDatabaseConnections();
   }
 
   /**
@@ -86,6 +82,29 @@ class Tejas {
 
     // Load defaults
     if (!env('PORT')) setEnv('PORT', 1403);
+  }
+
+  setupDatabaseConnections() {
+    // Get database configuration from environment
+    const config = Object.entries(env()).reduce((acc, [key, value]) => {
+      // Look for DB_* environment variables
+      if (key.startsWith('DB_')) {
+        const [_, dbType, configKey] = key.toLowerCase().split('_');
+        if (!acc[dbType]) acc[dbType] = {};
+        acc[dbType][configKey] = value;
+      }
+      return acc;
+    }, {});
+
+    // Initialize DatabaseManager
+    const dbManager = DatabaseManager.getInstance();
+
+    // Connect to each configured database
+    for (const [dbType, dbConfig] of Object.entries(config)) {
+      dbManager.initializeConnection(dbType, dbConfig).catch((err) => {
+        logger.error(`Failed to initialize ${dbType} connection: ${err}`);
+      });
+    }
   }
 
   /**
@@ -148,7 +167,7 @@ class Tejas {
    * Currently a placeholder for future rate limiting implementation.
    * Will support multiple algorithms and storage backends.
    */
-  enableRateLimit(options) {
+  setGlobalRateLimit(options) {
     // TODO: Implement rate limiting functionality using the provided options
     // Options could be an object with store and algorithm
   }

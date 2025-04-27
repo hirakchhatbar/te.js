@@ -246,3 +246,109 @@ In this example:
 - Exception logging will be true (from tejas.config.json)
 - Database settings will use MongoDB (from environment variables)
 - Target files will be loaded from the "targets" directory (from tejas.config.json)
+
+#### Database Configuration
+
+te.js supports multiple database connections with MongoDB and Redis. You can configure databases in three ways:
+
+1. **tejas.config.json**:
+
+   ```json
+   {
+     "db": {
+       "mongodb": {
+         "uri": "mongodb://localhost:27017/myapp",
+         "options": {
+           "useNewUrlParser": true,
+           "useUnifiedTopology": true
+         }
+       },
+       "redis": {
+         "url": "redis://localhost:6379",
+         "options": {
+           "password": "secret"
+         }
+       }
+     }
+   }
+   ```
+
+2. **Environment Variables**:
+
+   ```env
+   DB_MONGODB_URI=mongodb://localhost:27017/myapp
+   DB_MONGODB_OPTIONS_USENEWURLPARSER=true
+   DB_MONGODB_OPTIONS_USEUNIFIEDTOPOLOGY=true
+   DB_REDIS_URL=redis://localhost:6379
+   DB_REDIS_OPTIONS_PASSWORD=secret
+   ```
+
+3. **Constructor Options**:
+   ```javascript
+   const app = new Tejas({
+     db: {
+       mongodb: {
+         uri: 'mongodb://localhost:27017/myapp',
+         options: {
+           useNewUrlParser: true,
+           useUnifiedTopology: true,
+         },
+       },
+       redis: {
+         url: 'redis://localhost:6379',
+         options: {
+           password: 'secret',
+         },
+       },
+     },
+   });
+   ```
+
+You can access database connections in your targets using the DatabaseManager:
+
+```javascript
+import { Target } from 'te.js';
+import DatabaseManager from 'te.js/database';
+
+const target = new Target('/users');
+
+target.register('/', async (ammo) => {
+  // Get MongoDB connection
+  const mongodb = DatabaseManager.getInstance().getConnection('mongodb');
+  const users = await mongodb.model('User').find();
+  ammo.fire(users);
+});
+
+target.register('/cache', async (ammo) => {
+  // Get Redis connection
+  const redis = DatabaseManager.getInstance().getConnection('redis');
+  await redis.set('key', 'value');
+  ammo.fire('Cached');
+});
+```
+
+Multiple connections of the same type can be configured by providing a connection name:
+
+```javascript
+const dbManager = DatabaseManager.getInstance();
+
+// Initialize multiple MongoDB connections
+await dbManager.initializeConnection('mongodb', config1, 'users');
+await dbManager.initializeConnection('mongodb', config2, 'products');
+
+// Later, get specific connections
+const usersDb = dbManager.getConnection('mongodb', 'users');
+const productsDb = dbManager.getConnection('mongodb', 'products');
+```
+
+Each database type can have its own specific configuration options:
+
+- **MongoDB**:
+
+  - `uri`: MongoDB connection URI
+  - `options`: Mongoose connection options
+
+- **Redis**:
+  - `url`: Redis connection URL or array of URLs for cluster
+  - `isCluster`: Whether to use Redis Cluster
+  - `options`: Redis client options

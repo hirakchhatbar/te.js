@@ -16,33 +16,54 @@ const keysToUpperCase = (obj) => {
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
       const value = obj[key];
+      const upperKey = key.toUpperCase();
+
       if (
         typeof value === 'object' &&
         value !== null &&
         !Array.isArray(value)
       ) {
-        standardObj[key.toUpperCase()] = standardizeObj(value);
+        if (key === 'db' || upperKey === 'DB') {
+          // Special handling for database configurations
+          // Keep the database type key in lowercase but uppercase its properties
+          standardObj[upperKey] = Object.entries(value).reduce(
+            (acc, [dbType, dbConfig]) => {
+              acc[dbType.toLowerCase()] = keysToUpperCase(dbConfig);
+              return acc;
+            },
+            {},
+          );
+        } else {
+          standardObj[upperKey] = keysToUpperCase(value);
+        }
       } else {
-        standardObj[key.toUpperCase()] = value;
+        standardObj[upperKey] = value;
       }
     }
   }
 
   return standardObj;
 };
+
 const flattenObject = (obj, prefix = '') => {
   let flattened = {};
 
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
-      const newKey = prefix.length ? `${prefix}_${key}` : key; // Create a new key
+      const newKey = prefix.length ? `${prefix}_${key}` : key;
       const value = obj[key];
+
       if (
         typeof value === 'object' &&
         value !== null &&
         !Array.isArray(value)
       ) {
-        Object.assign(flattened, flattenObject(value, newKey));
+        if (key === 'DB' || key.startsWith('DB_')) {
+          // Keep database configurations nested
+          flattened[newKey] = value;
+        } else {
+          Object.assign(flattened, flattenObject(value, newKey));
+        }
       } else {
         flattened[newKey] = value;
       }

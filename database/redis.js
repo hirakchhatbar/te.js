@@ -1,5 +1,84 @@
 import { createClient, createCluster } from 'redis';
 import { createHash } from 'crypto';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { logger } from 'tej-logger';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function checkRedisInstallation() {
+  const packageJsonPath = path.join(__dirname, '..', 'package.json');
+  const nodeModulesPath = path.join(__dirname, '..', 'node_modules', 'redis');
+
+  try {
+    // Check if redis exists in package.json
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const inPackageJson = !!packageJson.dependencies?.redis;
+
+    // Check if redis exists in node_modules
+    const inNodeModules = fs.existsSync(nodeModulesPath);
+
+    return {
+      needsInstall: !inPackageJson || !inNodeModules,
+      reason: !inPackageJson
+        ? 'not in package.json'
+        : !inNodeModules
+          ? 'not in node_modules'
+          : null,
+    };
+  } catch (error) {
+    return { needsInstall: true, reason: 'error checking installation' };
+  }
+}
+
+function installRedisSync() {
+  const spinner = ['|', '/', '-', '\\'];
+  let current = 0;
+  let intervalId;
+
+  try {
+    const { needsInstall, reason } = checkRedisInstallation();
+
+    if (!needsInstall) {
+      return true;
+    }
+
+    // Start the spinner
+    intervalId = setInterval(() => {
+      process.stdout.write(`\r${spinner[current]} Installing redis...`);
+      current = (current + 1) % spinner.length;
+    }, 100);
+
+    logger.info(`Tejas will install redis (${reason})...`);
+
+    const command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const result = spawn.sync(command, ['install', 'redis'], {
+      stdio: 'inherit',
+      shell: true,
+    });
+
+    process.stdout.write('\r');
+    clearInterval(intervalId);
+
+    if (result.status === 0) {
+      logger.info('Redis installed successfully');
+      return true;
+    } else {
+      logger.error('Redis installation failed');
+      return false;
+    }
+  } catch (error) {
+    if (intervalId) {
+      process.stdout.write('\r');
+      clearInterval(intervalId);
+    }
+    logger.error('Error installing redis:', error);
+    return false;
+  }
+}
 
 class RedisConnectionManager {
   static #instance = null;
@@ -60,6 +139,15 @@ class RedisConnectionManager {
    * @returns {Promise<RedisClient|RedisCluster>} Redis client or cluster instance
    */
   async createConnection(config) {
+    const { needsInstall } = checkRedisInstallation();
+
+    if (needsInstall) {
+      const installed = installRedisSync();
+      if (!installed) {
+        throw new Error('Failed to install required redis package');
+      }
+    }
+
     const configHash = this.#createConfigHash(config);
 
     if (this.#clients.has(configHash)) {
