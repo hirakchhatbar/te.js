@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+build/
+*.min.js
+
+# Coverage directory
+coverage/
+
+# Cache directories
+.cache/
+.npm/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# System Files
+.DS_Store
+Thumbs.db
