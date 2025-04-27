@@ -10,20 +10,5 @@
   "body": {
     "max_size": 5242880,
     "timeout": 15000
-  },
-  "db": {
-    "mongodb": {
-      "uri": "mongodb://localhost:27017/myapp",
-      "options": {
-        "useNewUrlParser": true,
-        "useUnifiedTopology": true
-      }
-    },
-    "redis": {
-      "url": "redis://localhost:6379",
-      "options": {
-        "password": "optional-password"
-      }
-    }
   }
 }

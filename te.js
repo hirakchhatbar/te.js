@@ -31,15 +31,7 @@ class Tejas {
    * @param {Object} [args.log] - Logging configuration
    * @param {boolean} [args.log.http_requests] - Whether to log incoming HTTP requests
    * @param {boolean} [args.log.exceptions] - Whether to log exceptions
-   *
-   * @example
-   * const app = new Tejas({
-   *   port: 3000,
-   *   log: {
-   *     http_requests: true,
-   *     exceptions: true
-   *   }
-   * });
+   * @param {Object} [args.db] - Database configuration options
    */
   constructor(args) {
     if (Tejas.instance) return Tejas.instance;
