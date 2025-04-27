@@ -13,7 +13,9 @@ import TokenBucketRateLimiter from './algorithms/token-bucket.js';
  *                                                     - 'token-bucket': Best for handling traffic bursts
  *                                                     - 'sliding-window': Best for smooth rate limiting
  *                                                     - 'fixed-window': Simplest approach
- * @param {Object} [options.redis] - Redis configuration for distributed rate limiting
+ * @param {string} [options.store='memory'] - Storage backend to use:
+ *                                         - 'memory': In-memory storage (default)
+ *                                         - 'redis': Redis-based storage (requires global Redis config)
  * @param {Object} [options.algorithmOptions] - Algorithm-specific options
  * @param {Function} [options.keyGenerator] - Optional function to generate unique identifiers
  * @param {Object} [options.headerFormat] - Rate limit header format configuration
@@ -29,6 +31,7 @@ import TokenBucketRateLimiter from './algorithms/token-bucket.js';
 function rateLimiter(options) {
   const {
     algorithm = 'sliding-window',
+    store = 'memory',
     keyGenerator = (ammo) => ammo.ip,
     headerFormat = { type: 'standard' },
     onRateLimited,
@@ -55,12 +58,8 @@ function rateLimiter(options) {
     maxRequests: limiterOptions.maxRequests,
     timeWindowSeconds: limiterOptions.timeWindowSeconds,
     [configKey]: limiterOptions.algorithmOptions || {},
+    store, // Pass the store type to the limiter
   };
-
-  // Add redis config if provided
-  if (limiterOptions.redis) {
-    limiterConfig.redis = limiterOptions.redis;
-  }
 
   // Create the appropriate limiter instance
   let limiter;

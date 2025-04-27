@@ -1,4 +1,3 @@
-import { createHash } from 'crypto';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -87,178 +86,61 @@ function installMongooseSync() {
   }
 }
 
-class MongoDBConnectionManager {
-  static #instance = null;
-  static #isInitializing = false;
+/**
+ * Create a new MongoDB connection
+ * @param {Object} config - MongoDB configuration
+ * @param {string} config.uri - MongoDB connection URI
+ * @param {Object} [config.options={}] - Additional Mongoose options
+ * @returns {Promise<mongoose.Connection>} Mongoose connection instance
+ */
+async function createConnection(config) {
+  const { needsInstall } = checkMongooseInstallation();
 
-  #connections = new Map();
-  #connectionCount = 0;
-
-  constructor() {
-    if (MongoDBConnectionManager.#instance) {
-      return MongoDBConnectionManager.#instance;
-    }
-
-    if (!MongoDBConnectionManager.#isInitializing) {
-      throw new TejError(
-        500,
-        'Use MongoDBConnectionManager.getInstance() to get the instance',
-      );
-    }
-
-    MongoDBConnectionManager.#isInitializing = false;
-    MongoDBConnectionManager.#instance = this;
-  }
-
-  /**
-   * Get the singleton instance of MongoDBConnectionManager
-   * @returns {MongoDBConnectionManager}
-   */
-  static getInstance() {
-    if (!MongoDBConnectionManager.#instance) {
-      MongoDBConnectionManager.#isInitializing = true;
-      MongoDBConnectionManager.#instance = new MongoDBConnectionManager();
-    }
-    return MongoDBConnectionManager.#instance;
-  }
-
-  /**
-   * Create a hash from the config object
-   * @param {Object} config - MongoDB configuration
-   * @returns {string} Hash string
-   */
-  #createConfigHash(config) {
-    const normalizedConfig = {
-      uri: config.uri,
-      options: config.options || {},
-    };
-    return createHash('sha256')
-      .update(JSON.stringify(normalizedConfig))
-      .digest('hex');
-  }
-
-  /**
-   * Create a new MongoDB connection
-   * @param {Object} config - MongoDB configuration
-   * @param {string} config.uri - MongoDB connection URI
-   * @param {Object} [config.options={}] - Additional Mongoose options
-   * @returns {Promise<mongoose.Connection>} Mongoose connection instance
-   */
-  async createConnection(config) {
-    const { needsInstall } = checkMongooseInstallation();
-
-    if (needsInstall) {
-      const installed = installMongooseSync();
-      if (!installed) {
-        throw new TejError(500, 'Failed to install required mongoose package');
-      }
-    }
-
-    const configHash = this.#createConfigHash(config);
-
-    if (this.#connections.has(configHash)) {
-      return this.#connections.get(configHash);
-    }
-
-    const { uri, options = {} } = config;
-
-    try {
-      // Import mongoose dynamically to avoid circular dependencies
-      const mongoose = await import('mongoose').then((mod) => mod.default);
-
-      // Create a new connection
-      const connection = await mongoose.createConnection(uri, options);
-
-      // Handle connection events
-      connection.on('error', (err) =>
-        console.error(`MongoDB connection error:`, err),
-      );
-      connection.on('connected', () => {
-        console.log(`MongoDB connected to ${uri}`);
-        this.#connectionCount++;
-      });
-      connection.on('disconnected', () => {
-        console.log(`MongoDB disconnected from ${uri}`);
-        this.#connectionCount--;
-      });
-
-      this.#connections.set(configHash, connection);
-      return connection;
-    } catch (error) {
-      console.error(`Failed to create MongoDB connection:`, error);
-      throw new TejError(
-        500,
-        `Failed to create MongoDB connection: ${error.message}`,
-      );
+  if (needsInstall) {
+    const installed = installMongooseSync();
+    if (!installed) {
+      throw new TejError(500, 'Failed to install required mongoose package');
     }
   }
 
-  /**
-   * Get an existing MongoDB connection by config, creates a new connection if none exists
-   * @param {Object} config - MongoDB configuration
-   * @returns {Promise<mongoose.Connection>} Mongoose connection instance
-   */
-  async getClient(config) {
-    const configHash = this.#createConfigHash(config);
-    const existingConnection = this.#connections.get(configHash);
+  const { uri, options = {} } = config;
 
-    if (existingConnection) {
-      return existingConnection;
-    }
+  try {
+    const mongoose = await import('mongoose').then((mod) => mod.default);
+    const connection = await mongoose.createConnection(uri, options);
 
-    // If no connection exists, create a new one
-    return this.createConnection(config);
-  }
-
-  /**
-   * Close a MongoDB connection by config
-   * @param {Object} config - MongoDB configuration
-   * @returns {Promise<void>}
-   */
-  async closeConnection(config) {
-    const configHash = this.#createConfigHash(config);
-    const connection = this.#connections.get(configHash);
-    if (connection) {
-      await connection.close();
-      this.#connections.delete(configHash);
-    }
-  }
-
-  /**
-   * Close all MongoDB connections
-   * @returns {Promise<void>}
-   */
-  async closeAllConnections() {
-    const closePromises = Array.from(this.#connections.values()).map(
-      (connection) => connection.close(),
+    connection.on('error', (err) =>
+      logger.error(`MongoDB connection error:`, err),
     );
-    await Promise.all(closePromises);
-    this.#connections.clear();
-    this.#connectionCount = 0;
-  }
+    connection.on('connected', () => {
+      logger.info(`MongoDB connected to ${uri}`);
+    });
+    connection.on('disconnected', () => {
+      logger.info(`MongoDB disconnected from ${uri}`);
+    });
 
-  /**
-   * Get the number of active connections
-   * @returns {number}
-   */
-  getConnectionCount() {
-    return this.#connectionCount;
-  }
-
-  /**
-   * Get all active connection configurations
-   * @returns {Array<Object>}
-   */
-  getActiveConnections() {
-    return Array.from(this.#connections.entries()).map(
-      ([hash, connection]) => ({
-        hash,
-        connection,
-      }),
+    return connection;
+  } catch (error) {
+    logger.error(`Failed to create MongoDB connection:`, error);
+    throw new TejError(
+      500,
+      `Failed to create MongoDB connection: ${error.message}`,
     );
   }
 }
 
-// Export the singleton instance
-const mongodb = MongoDBConnectionManager.getInstance();
-export default mongodb;
+/**
+ * Close a MongoDB connection
+ * @param {mongoose.Connection} connection - Mongoose connection to close
+ * @returns {Promise<void>}
+ */
+async function closeConnection(connection) {
+  if (connection) {
+    await connection.close();
+  }
+}
+
+export default {
+  createConnection,
+  closeConnection,
+};

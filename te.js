@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
-
 import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
+import rateLimiter from './rate-limit/index.js';
 
 import targetRegistry from './server/targets/registry.js';
 import dbManager from './database/index.js';
@@ -202,8 +202,29 @@ class Tejas {
     return this;
   }
 
+  /**
+   * Adds global rate limiting to all endpoints
+   *
+   * @param {Object} config - Rate limiting configuration
+   * @param {number} [config.maxRequests=60] - Maximum number of requests allowed in the time window
+   * @param {number} [config.timeWindowSeconds=60] - Time window in seconds
+   * @param {string} [config.algorithm='sliding-window'] - Rate limiting algorithm ('token-bucket', 'sliding-window', or 'fixed-window')
+   * @param {Object} [config.algorithmOptions] - Algorithm-specific options
+   * @param {Object} [config.redis] - Redis configuration for distributed rate limiting
+   * @param {Function} [config.keyGenerator] - Function to generate unique identifiers (defaults to IP-based)
+   * @param {Object} [config.headerFormat] - Rate limit header format configuration
+   * @returns {Tejas} The Tejas instance for chaining
+   *
+   */
   withRateLimit(config) {
-    this.setGlobalRateLimit(config);
+    if (!config) {
+      logger.warn(
+        'No rate limit configuration provided. Skipping rate limit setup.',
+      );
+      return this;
+    }
+
+    this.midair(rateLimiter(config));
     return this;
   }
 }

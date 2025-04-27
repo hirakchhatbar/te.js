@@ -1,4 +1,3 @@
-import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -80,245 +79,123 @@ function installRedisSync() {
   }
 }
 
-class RedisConnectionManager {
-  static #instance = null;
-  static #isInitializing = false;
+/**
+ * Create a new Redis client or cluster
+ * @param {Object} config - Redis configuration
+ * @param {boolean} [config.isCluster=false] - Whether to use Redis Cluster
+ * @param {Object} [config.options={}] - Additional Redis options
+ * @returns {Promise<RedisClient|RedisCluster>} Redis client or cluster instance
+ */
+async function createConnection(config) {
+  const { needsInstall } = checkRedisInstallation();
 
-  #clients = new Map();
-  #connectionCount = 0;
-
-  constructor() {
-    if (RedisConnectionManager.#instance) {
-      return RedisConnectionManager.#instance;
+  if (needsInstall) {
+    const installed = installRedisSync();
+    if (!installed) {
+      throw new TejError(500, 'Failed to install required redis package');
     }
-
-    if (!RedisConnectionManager.#isInitializing) {
-      throw new TejError(
-        500,
-        'Use RedisConnectionManager.getInstance() to get the instance',
-      );
-    }
-
-    RedisConnectionManager.#isInitializing = false;
-    RedisConnectionManager.#instance = this;
   }
 
-  /**
-   * Get the singleton instance of RedisConnectionManager
-   * @returns {RedisConnectionManager}
-   */
-  static getInstance() {
-    if (!RedisConnectionManager.#instance) {
-      RedisConnectionManager.#isInitializing = true;
-      RedisConnectionManager.#instance = new RedisConnectionManager();
-    }
-    return RedisConnectionManager.#instance;
-  }
+  const { isCluster = false, options = {} } = config;
+  let client;
 
-  /**
-   * Create a hash from the config object
-   */
-  #createConfigHash(config) {
-    const normalizedConfig = {
-      isCluster: config.isCluster || false,
-      url: config.url,
-      options: config.options || {},
-    };
-    return createHash('sha256')
-      .update(JSON.stringify(normalizedConfig))
-      .digest('hex');
-  }
+  try {
+    const { createClient, createCluster } = await import(
+      pathToFileURL(packagePath)
+    );
 
-  /**
-   * Create a new Redis client or cluster
-   * @param {Object} config - Redis configuration
-   * @param {boolean} [config.isCluster=false] - Whether to use Redis Cluster
-   * @param {string|Object} config.url - Redis connection URL or configuration object
-   * @param {Object} [config.options={}] - Additional Redis options
-   * @returns {Promise<RedisClient|RedisCluster>} Redis client or cluster instance
-   */
-  async createConnection(config) {
-    const { needsInstall } = checkRedisInstallation();
-
-    if (needsInstall) {
-      const installed = installRedisSync();
-      if (!installed) {
-        throw new TejError(500, 'Failed to install required redis package');
-      }
-    }
-
-    // Set default values for optional parameters
-    config = {
-      isCluster: false,
-      ...config,
-    };
-
-    const configHash = this.#createConfigHash(config);
-
-    if (this.#clients.has(configHash)) {
-      return this.#clients.get(configHash);
-    }
-
-    const { isCluster = false, options = {} } = config;
-    let client;
-
-    try {
-      // Import the Redis client dynamically to avoid circular dependencies
-      const { createClient, createCluster } = await import(
-        pathToFileURL(packagePath)
-      );
-
-      if (isCluster) {
-        client = createCluster({
-          ...options,
-        });
-      } else {
-        client = createClient({
-          ...options,
-        });
-      }
-
-      let connectionTimeout;
-      let hasConnected = false;
-      let connectionAttempts = 0;
-      const maxRetries = options.maxRetries || 3;
-
-      // Create a promise that will resolve when connected or reject on fatal errors
-      const connectionPromise = new Promise((resolve, reject) => {
-        // Set a connection timeout
-        connectionTimeout = setTimeout(() => {
-          if (!hasConnected) {
-            client.quit().catch(() => {});
-            reject(new TejError(500, 'Redis connection timeout'));
-          }
-        }, options.connectTimeout || 10000);
-
-        // Handle connection events
-        client.on('error', (err) => {
-          logger.error(`Redis connection error: ${err}`, true);
-          if (!hasConnected && connectionAttempts >= maxRetries) {
-            clearTimeout(connectionTimeout);
-            client.quit().catch(() => {});
-            reject(
-              new TejError(
-                500,
-                `Redis connection failed after ${maxRetries} attempts: ${err.message}`,
-              ),
-            );
-          }
-          connectionAttempts++;
-        });
-
-        client.on('connect', () => {
-          hasConnected = true;
-          clearTimeout(connectionTimeout);
-          logger.info(
-            `Redis connected on ${client?.options?.url ?? client?.options?.socket?.host}`,
-          );
-          this.#connectionCount++;
-        });
-
-        client.on('ready', () => {
-          logger.info('Redis ready');
-          resolve(client);
-        });
-
-        client.on('end', () => {
-          logger.info('Redis connection closed');
-          this.#connectionCount--;
-          this.#clients.delete(configHash);
-        });
+    if (isCluster) {
+      client = createCluster({
+        ...options,
       });
+    } else {
+      client = createClient({
+        ...options,
+      });
+    }
 
-      await client.connect();
-      await connectionPromise;
+    let connectionTimeout;
+    let hasConnected = false;
+    let connectionAttempts = 0;
+    const maxRetries = options.maxRetries || 3;
 
-      this.#clients.set(configHash, client);
-      return client;
-    } catch (error) {
-      if (client) {
-        try {
-          await client.quit();
-        } catch (quitError) {
-          logger.error(
-            `Error while cleaning up Redis connection: ${quitError}`,
-            true,
+    // Create a promise that will resolve when connected or reject on fatal errors
+    const connectionPromise = new Promise((resolve, reject) => {
+      connectionTimeout = setTimeout(() => {
+        if (!hasConnected) {
+          client.quit().catch(() => {});
+          reject(new TejError(500, 'Redis connection timeout'));
+        }
+      }, options.connectTimeout || 10000);
+
+      client.on('error', (err) => {
+        logger.error(`Redis connection error: ${err}`, true);
+        if (!hasConnected && connectionAttempts >= maxRetries) {
+          clearTimeout(connectionTimeout);
+          client.quit().catch(() => {});
+          reject(
+            new TejError(
+              500,
+              `Redis connection failed after ${maxRetries} attempts: ${err.message}`,
+            ),
           );
         }
-      }
-      this.#clients.delete(configHash);
-      logger.error(`Failed to create Redis connection: ${error}`, true);
-      throw new TejError(
-        500,
-        `Failed to create Redis connection: ${error.message}`,
-      );
-    }
-  }
+        connectionAttempts++;
+      });
 
-  /**
-   * Get an existing Redis client or cluster by config, creates a new connection if none exists
-   * @param {Object} config - Redis configuration
-   * @returns {Promise<RedisClient|RedisCluster>} Redis client or cluster instance
-   */
-  async getClient(config) {
-    const configHash = this.#createConfigHash(config);
-    const existingClient = this.#clients.get(configHash);
+      client.on('connect', () => {
+        hasConnected = true;
+        clearTimeout(connectionTimeout);
+        logger.info(
+          `Redis connected on ${client?.options?.url ?? client?.options?.socket?.host}`,
+        );
+      });
 
-    if (existingClient) {
-      return existingClient;
-    }
+      client.on('ready', () => {
+        logger.info('Redis ready');
+        resolve(client);
+      });
 
-    // If no client exists, create a new connection
-    return this.createConnection(config);
-  }
+      client.on('end', () => {
+        logger.info('Redis connection closed');
+      });
+    });
 
-  /**
-   * Close a Redis connection by config
-   * @param {Object} config - Redis configuration
-   * @returns {Promise<void>}
-   */
-  async closeConnection(config) {
-    const configHash = this.#createConfigHash(config);
-    const client = this.#clients.get(configHash);
+    await client.connect();
+    await connectionPromise;
+
+    return client;
+  } catch (error) {
     if (client) {
-      await client.quit();
-      this.#clients.delete(configHash);
+      try {
+        await client.quit();
+      } catch (quitError) {
+        logger.error(
+          `Error while cleaning up Redis connection: ${quitError}`,
+          true,
+        );
+      }
     }
-  }
-
-  /**
-   * Close all Redis connections
-   * @returns {Promise<void>}
-   */
-  async closeAllConnections() {
-    const closePromises = Array.from(this.#clients.values()).map((client) =>
-      client.quit(),
+    logger.error(`Failed to create Redis connection: ${error}`, true);
+    throw new TejError(
+      500,
+      `Failed to create Redis connection: ${error.message}`,
     );
-    await Promise.all(closePromises);
-    this.#clients.clear();
-    this.#connectionCount = 0;
-  }
-
-  /**
-   * Get the number of active connections
-   * @returns {number}
-   */
-  getConnectionCount() {
-    return this.#connectionCount;
-  }
-
-  /**
-   * Get all active connection configurations
-   * @returns {Array<Object>}
-   */
-  getActiveConnections() {
-    return Array.from(this.#clients.entries()).map(([hash, client]) => ({
-      hash,
-      client,
-    }));
   }
 }
 
-// Export the singleton instance
-const redis = RedisConnectionManager.getInstance();
-export default redis;
+/**
+ * Close a Redis connection
+ * @param {RedisClient|RedisCluster} client - Redis client to close
+ * @returns {Promise<void>}
+ */
+async function closeConnection(client) {
+  if (client) {
+    await client.quit();
+  }
+}
+
+export default {
+  createConnection,
+  closeConnection,
+};
