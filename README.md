@@ -126,3 +126,123 @@ const limiter = new TokenBucketRateLimiter({
 ```
 
 Each rate limiter can only use one algorithm at a time. The algorithm is determined by which options object is provided (`tokenBucketConfig`, `slidingWindowConfig`, or `fixedWindowConfig`).
+
+## Configuration
+
+te.js provides a flexible configuration system with multiple sources and priorities:
+
+### 1. Configuration Sources (in order of precedence)
+
+1. **Constructor Options** (Highest Priority)
+
+   ```javascript
+   const app = new Tejas({
+     port: 3000,
+     log: {
+       http_requests: true,
+       exceptions: true,
+     },
+     db: {
+       type: 'mongodb',
+       uri: 'mongodb://localhost:27017/myapp',
+     },
+   });
+   ```
+
+2. **Environment Variables**
+
+   ```env
+   PORT=3000
+   LOG_HTTP_REQUESTS=true
+   LOG_EXCEPTIONS=true
+   DB_TYPE=mongodb
+   DB_URI=mongodb://localhost:27017/myapp
+   ```
+
+3. **tejas.config.json** (Lowest Priority)
+   ```json
+   {
+     "port": 3000,
+     "log": {
+       "http_requests": true,
+       "exceptions": true
+     },
+     "dir": {
+       "targets": "targets"
+     }
+   }
+   ```
+
+### 2. Configuration Properties
+
+#### Core Settings
+
+- `port` - Server port number (default: 1403)
+- `dir.targets` - Directory for target (route) files
+
+#### Logging
+
+- `log.http_requests` - Enable/disable HTTP request logging
+- `log.exceptions` - Enable/disable exception logging
+
+#### Database
+
+- `db.type` - Database type ('mongodb', 'mysql', 'postgres', 'sqlite')
+- `db.uri` - Database connection URI
+
+### 3. Configuration Behavior
+
+- All configuration keys are standardized to uppercase
+- Nested objects are flattened with underscore separator
+- Configuration from all sources is merged with higher priority sources overwriting lower priority ones
+- Default values are applied if required configuration is missing
+
+### 4. Example Configuration
+
+Here's a complete example showing all three configuration methods:
+
+1. **tejas.config.json**:
+
+   ```json
+   {
+     "port": 1403,
+     "log": {
+       "http_requests": true,
+       "exceptions": true
+     },
+     "dir": {
+       "targets": "targets"
+     }
+   }
+   ```
+
+2. **.env file**:
+
+   ```env
+   PORT=3000
+   DB_TYPE=mongodb
+   DB_URI=mongodb://localhost:27017/myapp
+   ```
+
+3. **Application Code**:
+
+   ```javascript
+   import Tejas from 'te.js';
+
+   const app = new Tejas({
+     port: 4000,
+     log: {
+       http_requests: false,
+     },
+   });
+
+   app.takeoff();
+   ```
+
+In this example:
+
+- Port will be 4000 (from constructor)
+- HTTP request logging will be disabled (from constructor)
+- Exception logging will be true (from tejas.config.json)
+- Database settings will use MongoDB (from environment variables)
+- Target files will be loaded from the "targets" directory (from tejas.config.json)

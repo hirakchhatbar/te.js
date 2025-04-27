@@ -4,7 +4,7 @@
     "http_requests": true,
     "exceptions": true
   },
-  "dir":{
+  "dir": {
     "targets": "targets"
   }
 }
