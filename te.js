@@ -2,7 +2,6 @@ import { createServer } from 'node:http';
 
 import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
-import database from './database/index.js';
 
 import TargetRegistry from './server/targets/registry.js';
 
@@ -58,52 +57,6 @@ class Tejas {
 
     this.generateConfiguration();
     this.registerTargetsDir();
-  }
-
-  /**
-   * Connects to the configured database
-   *
-   * @private
-   * @description
-   * Establishes a connection to the database specified in the configuration.
-   * The database type and URI are read from environment variables DB_TYPE and DB_URI.
-   * Currently supports: mongodb
-   *
-   * @throws {Error} If database type is not supported or connection fails
-   */
-  connectDatabase() {
-    const db = env('DB_TYPE');
-    const uri = env('DB_URI');
-
-    if (!db) return;
-    if (!uri) {
-      logger.error(
-        `Tejas could not connect to ${db} as it couldn't find a connection URI. See our documentation for more information.`,
-        false,
-      );
-      return;
-    }
-
-    const connect = database[db];
-    if (!connect) {
-      logger.error(
-        `Tejas could not connect to ${db} as it is not supported. See our documentation for more information.`,
-        false,
-      );
-      return;
-    }
-
-    connect(uri, {}, (error) => {
-      if (error) {
-        logger.error(
-          `Tejas could not connect to ${db}. Error: ${error}`,
-          false,
-        );
-        return;
-      }
-
-      logger.info(`Tejas connected to ${db} successfully.`);
-    });
   }
 
   /**
@@ -205,7 +158,6 @@ class Tejas {
    *
    * @description
    * Creates and starts an HTTP server on the configured port.
-   * Automatically connects to the configured database if specified.
    *
    * @example
    * const app = new Tejas();
@@ -215,7 +167,6 @@ class Tejas {
     this.engine = createServer(targetHandler);
     this.engine.listen(env('PORT'), () => {
       logger.info(`Took off from port ${env('PORT')}`);
-      this.connectDatabase();
     });
   }
 }
