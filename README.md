@@ -1,358 +1,334 @@
-# te.js (WIP)
+<p align="center">
+  <img src="https://tejas-documentation.vercel.app/tejas-logo.svg" alt="Tejas Logo" width="200">
+</p>
 
-<p align="center"><img src="https://tejas-documentation.vercel.app/tejas-logo.svg" alt="project-image"></p>
+<h1 align="center">Tejas</h1>
 
-<p>A Node Framework For Powerful Backend Services</p>
+<p align="center">
+  <strong>A Node.js Framework for Powerful Backend Services</strong>
+</p>
 
-<h3><a href="https://tejas-documentation.vercel.app" target="_blank">Documentation (WIP)</a></h3>
+<p align="center">
+  <a href="https://www.npmjs.com/package/te.js"><img src="https://img.shields.io/npm/v/te.js.svg" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/te.js"><img src="https://img.shields.io/npm/dm/te.js.svg" alt="npm downloads"></a>
+  <a href="https://github.com/hirakchhatbar/te.js/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/te.js.svg" alt="license"></a>
+</p>
+
+<p align="center">
+  <a href="https://tejas-documentation.vercel.app">Documentation</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="./docs">Full Docs</a>
+</p>
+
+---
+
+## What is Tejas?
+
+Tejas (meaning "radiance" in Hindi) is a modern, lightweight Node.js framework designed for building robust backend services. It offers an intuitive API with aviation-inspired naming conventions, making your code both expressive and enjoyable to write.
+
+```javascript
+import Tejas, { Target } from 'te.js';
+
+const app = new Tejas();
+const api = new Target('/api');
+
+api.register('/hello/:name', (ammo) => {
+  ammo.fire({ message: `Hello, ${ammo.payload.name}!` });
+});
+
+app.takeoff();
+```
 
 ## Features
 
-- Robust exception handling so that your app never dies even if you forget to catch it.
-- Offers a powerful and flexible routing system that enables method-free and clean URL structures.
-- Fully compatible with Express middlewares as well as the ability to build te.js middlewares.
-- Built-in logger to log all the requests responses and errors to help you debug your application.
-- Built-in GUI to manage your application environment variables view logs and run schedulers.
-- Real-time insights into the performance health and usage of your application with built-in monitoring.
-- Built in alerts via Email SMS or Slack to notify you of any exceptions and malformed requests.
-- Highly configurable caching options to cache responses at different levels to improve performance.
-- Protect your API from abuse with flexible rate limiting algorithms.
+- **Simple Routing** — Clean, method-agnostic URL structures with parameterized routes
+- **Express Compatible** — Use existing Express middleware alongside Tejas middleware
+- **Built-in Rate Limiting** — Three algorithms (Token Bucket, Sliding Window, Fixed Window)
+- **Database Ready** — First-class support for MongoDB and Redis
+- **File Uploads** — Easy file handling with size limits and type validation
+- **Robust Error Handling** — Your app stays running even with uncaught exceptions
+- **Request Logging** — Built-in HTTP request and exception logging
+- **Auto-Discovery** — Automatic route registration from target files
 
-## Rate Limiting
+## Quick Start
 
-te.js provides three powerful rate limiting algorithms to protect your APIs from abuse:
+### Installation
 
-### Token Bucket Algorithm
-
-Best for APIs that need to handle bursts of traffic while maintaining a long-term rate limit.
-
-```javascript
-import { TokenBucketRateLimiter } from 'te.js/rate-limit';
-
-const limiter = new TokenBucketRateLimiter({
-  maxRequests: 10, // Allow 10 requests
-  timeWindowSeconds: 60, // Per 60 seconds
-  tokenBucketConfig: {
-    // Algorithm-specific options
-    refillRate: 0.5, // Refill 1 token every 2 seconds
-    burstSize: 15, // Allow bursts up to 15 tokens
-  },
-});
+```bash
+npm install te.js
 ```
 
-### Sliding Window Algorithm
-
-Provides smooth rate limiting with weighted windows to prevent traffic spikes.
+### Create Your App
 
 ```javascript
-import { SlidingWindowRateLimiter } from 'te.js/rate-limit';
+// index.js
+import Tejas from 'te.js';
 
-const limiter = new SlidingWindowRateLimiter({
-  maxRequests: 100, // Allow 100 requests
-  timeWindowSeconds: 60, // Per 60 seconds
-  slidingWindowConfig: {
-    // Algorithm-specific options
-    granularity: 1, // 1-second precision
-    weights: {
-      current: 1, // Full weight for current window
-      previous: 0.5, // Half weight for previous window
-    },
-  },
-});
+const app = new Tejas({ port: 3000 });
+app.takeoff();
 ```
 
-### Fixed Window Algorithm
-
-Simple time-based rate limiting with optional clock alignment.
+### Define Routes
 
 ```javascript
-import { FixedWindowRateLimiter } from 'te.js/rate-limit';
+// targets/user.target.js
+import { Target } from 'te.js';
 
-const limiter = new FixedWindowRateLimiter({
-  maxRequests: 60, // Allow 60 requests
-  timeWindowSeconds: 60, // Per 60 seconds
-  fixedWindowConfig: {
-    // Algorithm-specific options
-    strictWindow: true, // Align windows with clock minutes
-  },
-});
-```
+const users = new Target('/users');
 
-### Using Rate Limiters
-
-All rate limiters share a common interface:
-
-```javascript
-import { Target, TejError } from 'te.js';
-
-const target = new Target();
-
-target.register('/', async (ammo) => {
-  // Check rate limit using client IP as identifier
-  const result = await limiter.consume(ammo.ip);
-
-  // Set rate limit headers
-  ammo.res.setHeader('X-RateLimit-Limit', limiter.options.maxRequests);
-  ammo.res.setHeader('X-RateLimit-Remaining', result.remainingRequests);
-  ammo.res.setHeader('X-RateLimit-Reset', result.resetTime);
-
-  if (!result.success) {
-    throw new TejError(429, 'Too Many Requests');
+users.register('/', (ammo) => {
+  if (ammo.GET) {
+    ammo.fire([{ id: 1, name: 'John' }]);
+  } else if (ammo.POST) {
+    const { name, email } = ammo.payload;
+    ammo.fire(201, { id: 2, name, email });
+  } else {
+    ammo.notAllowed();
   }
+});
 
-  // Your endpoint logic here
-  ammo.fire({ message: 'Hello World' });
+users.register('/:id', (ammo) => {
+  const { id } = ammo.payload;
+  ammo.fire({ id, name: 'John Doe' });
 });
 ```
 
-### Distributed Rate Limiting with Redis
+### Run
 
-For distributed applications, use Redis storage:
-
-```javascript
-const limiter = new TokenBucketRateLimiter({
-  maxRequests: 10,
-  timeWindowSeconds: 60,
-  redis: {
-    // Redis connection options
-    url: 'redis://localhost:6379',
-  },
-  tokenBucketConfig: {
-    // Algorithm-specific options
-    refillRate: 0.5,
-    burstSize: 15,
-  },
-});
+```bash
+node index.js
+# Server running at http://localhost:3000
 ```
 
-Each rate limiter can only use one algorithm at a time. The algorithm is determined by which options object is provided (`tokenBucketConfig`, `slidingWindowConfig`, or `fixedWindowConfig`).
+## Core Concepts
+
+| Tejas Term | Purpose | Express Equivalent |
+|------------|---------|-------------------|
+| `Tejas` | Application instance | `express()` |
+| `Target` | Route group/router | `Router()` |
+| `Ammo` | Request/response context | `req` + `res` |
+| `fire()` | Send response | `res.send()` |
+| `midair()` | Register middleware | `use()` |
+| `takeoff()` | Start server | `listen()` |
 
 ## Configuration
 
-te.js provides a flexible configuration system with multiple sources and priorities:
+Tejas supports multiple configuration sources (in order of priority):
 
-### 1. Configuration Sources (in order of precedence)
-
-1. **Constructor Options** (Highest Priority)
-
-   ```javascript
-   const app = new Tejas({
-     port: 3000,
-     log: {
-       http_requests: true,
-       exceptions: true,
-     },
-     db: {
-       type: 'mongodb',
-       uri: 'mongodb://localhost:27017/myapp',
-     },
-   });
-   ```
-
-2. **Environment Variables**
-
-   ```env
-   PORT=3000
-   LOG_HTTP_REQUESTS=true
-   LOG_EXCEPTIONS=true
-   DB_TYPE=mongodb
-   DB_URI=mongodb://localhost:27017/myapp
-   ```
-
-3. **tejas.config.json** (Lowest Priority)
-   ```json
-   {
-     "port": 1403,
-     "log": {
-       "http_requests": true,
-       "exceptions": true
-     },
-     "dir": {
-       "targets": "targets"
-     },
-     "body": {
-       "max_size": 5242880, // 5MB in bytes
-       "timeout": 15000 // 15 seconds
-     }
-   }
-   ```
-
-### 2. Configuration Properties
-
-#### Core Settings
-
-- `port` - Server port number (default: 1403)
-- `dir.targets` - Directory for target (route) files
-
-#### Logging
-
-- `log.http_requests` - Enable/disable HTTP request logging
-- `log.exceptions` - Enable/disable exception logging
-
-#### Database
-
-- `db.type` - Database type ('mongodb', 'mysql', 'postgres', 'sqlite')
-- `db.uri` - Database connection URI
-
-### 3. Configuration Behavior
-
-- All configuration keys are standardized to uppercase
-- Nested objects are flattened with underscore separator
-- Configuration from all sources is merged with higher priority sources overwriting lower priority ones
-- Default values are applied if required configuration is missing
-
-### 4. Example Configuration
-
-Here's a complete example showing all three configuration methods:
-
-1. **tejas.config.json**:
-
-   ```json
-   {
-     "port": 1403,
-     "log": {
-       "http_requests": true,
-       "exceptions": true
-     },
-     "dir": {
-       "targets": "targets"
-     }
-   }
-   ```
-
-2. **.env file**:
-
-   ```env
-   PORT=3000
-   DB_TYPE=mongodb
-   DB_URI=mongodb://localhost:27017/myapp
-   ```
-
-3. **Application Code**:
-
-   ```javascript
-   import Tejas from 'te.js';
-
-   const app = new Tejas({
-     port: 4000,
-     log: {
-       http_requests: false,
-     },
-   });
-
-   app.takeoff();
-   ```
-
-In this example:
-
-- Port will be 4000 (from constructor)
-- HTTP request logging will be disabled (from constructor)
-- Exception logging will be true (from tejas.config.json)
-- Database settings will use MongoDB (from environment variables)
-- Target files will be loaded from the "targets" directory (from tejas.config.json)
-
-#### Database Configuration
-
-te.js supports multiple database connections with MongoDB and Redis. You can configure databases in three ways:
-
-1. **tejas.config.json**:
-
-   ```json
-   {
-     "db": {
-       "mongodb": {
-         "uri": "mongodb://localhost:27017/myapp",
-         "options": {
-           "useNewUrlParser": true,
-           "useUnifiedTopology": true
-         }
-       },
-       "redis": {
-         "url": "redis://localhost:6379",
-         "options": {
-           "password": "secret"
-         }
-       }
-     }
-   }
-   ```
-
-2. **Environment Variables**:
-
-   ```env
-   DB_MONGODB_URI=mongodb://localhost:27017/myapp
-   DB_MONGODB_OPTIONS_USENEWURLPARSER=true
-   DB_MONGODB_OPTIONS_USEUNIFIEDTOPOLOGY=true
-   DB_REDIS_URL=redis://localhost:6379
-   DB_REDIS_OPTIONS_PASSWORD=secret
-   ```
-
-3. **Constructor Options**:
-   ```javascript
-   const app = new Tejas({
-     db: {
-       mongodb: {
-         uri: 'mongodb://localhost:27017/myapp',
-         options: {
-           useNewUrlParser: true,
-           useUnifiedTopology: true,
-         },
-       },
-       redis: {
-         url: 'redis://localhost:6379',
-         options: {
-           password: 'secret',
-         },
-       },
-     },
-   });
-   ```
-
-You can access database connections in your targets using the DatabaseManager:
+1. **Constructor options** (highest)
+2. **Environment variables**
+3. **tejas.config.json** (lowest)
 
 ```javascript
-import { Target } from 'te.js';
-import DatabaseManager from 'te.js/database';
-
-const target = new Target('/users');
-
-target.register('/', async (ammo) => {
-  // Get MongoDB connection
-  const mongodb = DatabaseManager.getInstance().getConnection('mongodb');
-  const users = await mongodb.model('User').find();
-  ammo.fire(users);
-});
-
-target.register('/cache', async (ammo) => {
-  // Get Redis connection
-  const redis = DatabaseManager.getInstance().getConnection('redis');
-  await redis.set('key', 'value');
-  ammo.fire('Cached');
+// Using constructor options
+const app = new Tejas({
+  port: 3000,
+  log: {
+    http_requests: true,
+    exceptions: true
+  }
 });
 ```
 
-Multiple connections of the same type can be configured by providing a connection name:
-
-```javascript
-const dbManager = DatabaseManager.getInstance();
-
-// Initialize multiple MongoDB connections
-await dbManager.initializeConnection('mongodb', config1, 'users');
-await dbManager.initializeConnection('mongodb', config2, 'products');
-
-// Later, get specific connections
-const usersDb = dbManager.getConnection('mongodb', 'users');
-const productsDb = dbManager.getConnection('mongodb', 'products');
+```json
+// tejas.config.json
+{
+  "port": 3000,
+  "dir": {
+    "targets": "targets"
+  },
+  "log": {
+    "http_requests": true
+  }
+}
 ```
 
-Each database type can have its own specific configuration options:
+## Database Integration
 
-- **MongoDB**:
+### Redis
 
-  - `uri`: MongoDB connection URI
-  - `options`: Mongoose connection options
+```javascript
+const app = new Tejas();
 
-- **Redis**:
-  - `url`: Redis connection URL or array of URLs for cluster
-  - `isCluster`: Whether to use Redis Cluster
-  - `options`: Redis client options
+app
+  .withRedis({ url: 'redis://localhost:6379' })
+  .takeoff();
+```
+
+### MongoDB
+
+```javascript
+app.takeoff({
+  withMongo: { uri: 'mongodb://localhost:27017/myapp' }
+});
+```
+
+## Rate Limiting
+
+Protect your API with built-in rate limiting:
+
+```javascript
+app
+  .withRedis({ url: 'redis://localhost:6379' })
+  .withRateLimit({
+    maxRequests: 100,
+    timeWindowSeconds: 60,
+    algorithm: 'sliding-window', // or 'token-bucket', 'fixed-window'
+    store: 'redis' // or 'memory'
+  })
+  .takeoff();
+```
+
+## File Uploads
+
+```javascript
+import { Target, TejFileUploader } from 'te.js';
+
+const upload = new TejFileUploader({
+  destination: 'uploads/',
+  maxFileSize: 5 * 1024 * 1024 // 5MB
+});
+
+const target = new Target('/files');
+
+target.register('/upload', upload.file('avatar'), (ammo) => {
+  ammo.fire({ file: ammo.payload.avatar });
+});
+```
+
+## Middleware
+
+### Global Middleware
+
+```javascript
+app.midair((ammo, next) => {
+  console.log(`${ammo.method} ${ammo.path}`);
+  next();
+});
+```
+
+### Target Middleware
+
+```javascript
+const api = new Target('/api');
+
+api.midair(authMiddleware);
+
+api.register('/protected', (ammo) => {
+  ammo.fire({ secret: 'data' });
+});
+```
+
+### Route Middleware
+
+```javascript
+api.register('/admin', adminOnly, (ammo) => {
+  ammo.fire({ admin: true });
+});
+```
+
+### Express Compatibility
+
+```javascript
+// Express-style middleware works too!
+app.midair((req, res, next) => {
+  req.customData = 'hello';
+  next();
+});
+```
+
+## Error Handling
+
+```javascript
+import { TejError } from 'te.js';
+
+target.register('/resource/:id', async (ammo) => {
+  const resource = await findResource(ammo.payload.id);
+  
+  if (!resource) {
+    throw new TejError(404, 'Resource not found');
+  }
+  
+  ammo.fire(resource);
+});
+```
+
+## Project Structure
+
+```
+my-app/
+├── index.js
+├── tejas.config.json
+├── targets/
+│   ├── user.target.js
+│   ├── auth.target.js
+│   └── api/
+│       └── products.target.js
+└── middlewares/
+    ├── auth.js
+    └── logging.js
+```
+
+## API Reference
+
+### Tejas Class
+
+```javascript
+const app = new Tejas(options);
+
+app.midair(middleware)      // Add global middleware
+app.withRedis(config)       // Initialize Redis connection
+app.withMongo(config)       // Initialize MongoDB connection
+app.withRateLimit(config)   // Enable rate limiting
+app.takeoff(options)        // Start the server
+```
+
+### Target Class
+
+```javascript
+const target = new Target('/base');
+
+target.midair(middleware)           // Add target-level middleware
+target.register(path, ...handlers)  // Register an endpoint
+```
+
+### Ammo Object
+
+```javascript
+// Properties
+ammo.GET, ammo.POST, ammo.PUT, ammo.DELETE  // HTTP method flags
+ammo.payload    // Request body + query params + route params
+ammo.headers    // Request headers
+ammo.ip         // Client IP address
+ammo.path       // Request path
+ammo.method     // HTTP method string
+
+// Methods
+ammo.fire(data)              // Send 200 response
+ammo.fire(status, data)      // Send response with status
+ammo.throw(error)            // Send error response
+ammo.redirect(url)           // Redirect
+ammo.notFound()              // 404 response
+ammo.notAllowed()            // 405 response
+ammo.unauthorized()          // 401 response
+```
+
+## Documentation
+
+For comprehensive documentation, see the [docs folder](./docs) or visit [tejas-documentation.vercel.app](https://tejas-documentation.vercel.app).
+
+- [Getting Started](./docs/getting-started.md)
+- [Configuration](./docs/configuration.md)
+- [Routing](./docs/routing.md)
+- [Middleware](./docs/middleware.md)
+- [Database](./docs/database.md)
+- [Rate Limiting](./docs/rate-limiting.md)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+ISC © [Hirak Chhatbar](https://github.com/hirakchhatbar)

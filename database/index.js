@@ -1,12 +1,22 @@
 import redis from './redis.js';
 import mongodb from './mongodb.js';
 import TejError from '../server/error.js';
+import TejLogger from 'tej-logger';
+
+const logger = new TejLogger('DatabaseManager');
 
 class DatabaseManager {
   static #instance = null;
   static #isInitializing = false;
 
+  // Enhanced connection tracking with metadata
   #connections = new Map();
+  #initializingConnections = new Map();
+
+  // Helper method for sleeping
+  async #sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   constructor() {
     if (DatabaseManager.#instance) {
@@ -32,21 +42,20 @@ class DatabaseManager {
     return DatabaseManager.#instance;
   }
 
-  /**
-   * Initialize a database connection
-   * @param {string} dbType - Type of database ('redis', 'mongodb', etc.)
-   * @param {Object} config - Database configuration
-   * @returns {Promise<any>} Database client instance
-   */
   async initializeConnection(dbType, config) {
-    // If a connection already exists for this type, return it
-    if (this.#connections.has(dbType)) {
-      return this.#connections.get(dbType);
+    const key = dbType.toLowerCase();
+
+    // If a connection already exists for this config, return it
+    if (this.#connections.has(key)) {
+      return this.#connections.get(key).client;
     }
+
+    // Set initializing flag
+    this.#initializingConnections.set(key, true);
 
     let client;
     try {
-      switch (dbType.toLowerCase()) {
+      switch (key) {
         case 'redis':
           client = await redis.createConnection({
             isCluster: config.isCluster || false,
@@ -60,51 +69,56 @@ class DatabaseManager {
           throw new TejError(400, `Unsupported database type: ${dbType}`);
       }
 
-      this.#connections.set(dbType, client);
+      this.#connections.set(key, {
+        type: dbType,
+        client,
+        config,
+      });
+
+      // Clear initializing flag
+      this.#initializingConnections.delete(key);
+
       return client;
     } catch (error) {
-      console.error(`Failed to initialize ${dbType} connection:`, error);
+      // Clear initializing flag on error
+      this.#initializingConnections.delete(key);
+      logger.error(`Failed to initialize ${dbType} connection:`, error);
       throw error;
     }
   }
 
-  /**
-   * Get a database connection
-   * @param {string} dbType - Type of database
-   * @returns {any} Database client instance
-   */
   getConnection(dbType) {
-    const connection = this.#connections.get(dbType);
+    const key = dbType.toLowerCase();
+    const connection = this.#connections.get(key);
     if (!connection) {
-      throw new TejError(404, `No connection found for ${dbType}`);
+      throw new TejError(
+        404,
+        `No connection found for ${dbType} with given config`,
+      );
     }
-    return connection;
+    return connection.client;
   }
 
-  /**
-   * Close a specific database connection
-   * @param {string} dbType - Type of database
-   * @returns {Promise<void>}
-   */
-  async closeConnection(dbType) {
-    if (!this.#connections.has(dbType)) {
+  async closeConnection(dbType, config) {
+    const key = dbType.toLowerCase();
+    if (!this.#connections.has(key)) {
       return;
     }
 
     try {
-      const connection = this.#connections.get(dbType);
-      switch (dbType.toLowerCase()) {
+      const connection = this.#connections.get(key);
+      switch (key) {
         case 'redis':
-          await redis.closeConnection({ url: connection.options.url });
+          await redis.closeConnection(connection.client);
           break;
         case 'mongodb':
-          await mongodb.closeConnection({ uri: connection.options.uri });
+          await mongodb.closeConnection(connection.client);
           break;
       }
 
-      this.#connections.delete(dbType);
+      this.#connections.delete(key);
     } catch (error) {
-      console.error(`Error closing ${dbType} connection:`, error);
+      logger.error(`Error closing ${dbType} connection:`, error);
       throw error;
     }
   }
@@ -115,8 +129,10 @@ class DatabaseManager {
    */
   async closeAllConnections() {
     const closePromises = [];
-    for (const [dbType] of this.#connections) {
-      closePromises.push(this.closeConnection(dbType));
+    for (const [key, connection] of this.#connections) {
+      closePromises.push(
+        this.closeConnection(connection.type, connection.config),
+      );
     }
     await Promise.all(closePromises);
     this.#connections.clear();
@@ -124,19 +140,24 @@ class DatabaseManager {
 
   /**
    * Get all active connections
-   * @returns {Map<string, any>} Map of all active connections
+   * @returns {Map<string, {type: string, client: any, config: Object}>}
    */
   getActiveConnections() {
     return new Map(this.#connections);
   }
 
   /**
-   * Check if a connection exists
+   * Check if a connection exists or is being initialized
    * @param {string} dbType - Type of database
-   * @returns {boolean}
+   * @param {Object} config - Database configuration
+   * @returns {{ exists: boolean, initializing: boolean }}
    */
-  hasConnection(dbType) {
-    return this.#connections.has(dbType);
+  hasConnection(dbType, config) {
+    const key = dbType.toLowerCase();
+    return {
+      exists: this.#connections.has(key),
+      initializing: this.#initializingConnections.has(key),
+    };
   }
 }
 

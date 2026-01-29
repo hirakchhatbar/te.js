@@ -2,9 +2,9 @@ import { env } from 'tej-env';
 import TejError from '../error.js';
 
 async function parseDataBasedOnContentType(req) {
-  // Validate content-type header exists
+  // If no content-type header, return empty object (for requests without body)
   if (!req.headers['content-type']) {
-    throw new BodyParserError('Content-Type header is missing', 400);
+    return {};
   }
 
   const contentType = req.headers['content-type'].toLowerCase();

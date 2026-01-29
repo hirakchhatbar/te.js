@@ -152,6 +152,35 @@ class Ammo {
   }
 
   /**
+   * Redirects to the specified URL.
+   *
+   * @param {string} url - The URL to redirect to
+   * @param {number} [statusCode=302] - HTTP status code for redirect (default: 302)
+   *
+   * @description
+   * Sends an HTTP redirect response to the specified URL.
+   * Uses 302 (Found/Temporary Redirect) by default.
+   * Common status codes:
+   * - 301: Moved Permanently
+   * - 302: Found (Temporary Redirect)
+   * - 303: See Other
+   * - 307: Temporary Redirect (maintains HTTP method)
+   * - 308: Permanent Redirect (maintains HTTP method)
+   *
+   * @example
+   * // Temporary redirect (302)
+   * ammo.redirect('/new-location');
+   *
+   * @example
+   * // Permanent redirect (301)
+   * ammo.redirect('/new-location', 301);
+   */
+  redirect(url, statusCode = 302) {
+    this.res.writeHead(statusCode, { Location: url });
+    this.res.end();
+  }
+
+  /**
    * Throws a 404 Not Found error.
    *
    * @description

@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
-
 import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
+import rateLimiter from './rate-limit/index.js';
 
 import targetRegistry from './server/targets/registry.js';
 import dbManager from './database/index.js';
@@ -13,6 +13,7 @@ import { findTargetFiles } from './utils/auto-register.js';
 import { pathToFileURL } from 'node:url';
 
 const logger = new TejLogger('Tejas');
+
 /**
  * Main Tejas Framework Class
  *
@@ -85,7 +86,7 @@ class Tejas {
   /**
    * Registers global middleware functions
    *
-   * @param {...Function} middlewares - Middleware functions to register globally
+   * @param {...Function} arguments - Middleware functions to register globally
    * @description
    * Middleware functions are executed in order for all incoming requests.
    * Each middleware should have the signature (ammo, next) or (req, res, next).
@@ -137,8 +138,6 @@ class Tejas {
    *
    * @param {Object} [options] - Server configuration options
    * @param {Object} [options.withRedis] - Redis connection options
-   * @param {boolean} [options.withRedis.isCluster=false] - Whether this is a Redis cluster connection
-   * @param {Object} [options.withRedis.url] - Redis connection URL and other options (https://redis.io/docs/latest/develop/clients/nodejs/connect/)
    * @param {Object} [options.withMongo] - MongoDB connection options (https://www.mongodb.com/docs/drivers/node/current/fundamentals/connection/)
    * @description
    * Creates and starts an HTTP server on the configured port.
@@ -171,8 +170,8 @@ class Tejas {
     this.engine.listen(env('PORT'), async () => {
       logger.info(`Took off from port ${env('PORT')}`);
 
-      if (withRedis) await dbManager.initializeConnection('redis', withRedis);
-      if (withMongo) await dbManager.initializeConnection('mongodb', withMongo);
+      if (withRedis) await this.withRedis(withRedis);
+      if (withMongo) await this.withMongo(withMongo);
     });
 
     this.engine.on('error', (err) => {
@@ -180,17 +179,86 @@ class Tejas {
     });
   }
 
-  withRedis(config) {
+  /**
+   * Initializes a Redis connection
+   *
+   * @param {Object} [config] - Redis connection configuration
+   * @param {boolean} [config.isCluster=false] - Whether to use Redis Cluster
+   * @param {Object} [config.socket] - Redis socket connection options
+   * @param {string} [config.socket.host] - Redis server hostname
+   * @param {number} [config.socket.port] - Redis server port
+   * @param {boolean} [config.socket.tls] - Whether to use TLS for connection
+   * @param {string} [config.url] - Redis connection URL (alternative to socket config)
+   * @returns {Promise<Tejas>} Returns a Promise that resolves to this instance for chaining
+   *
+   * @example
+   * // Initialize Redis with URL
+   * await app.withRedis({
+   *   url: 'redis://localhost:6379'
+   * }).withRateLimit({
+   *   maxRequests: 100,
+   *   store: 'redis'
+   * });
+   *
+   * @example
+   * // Initialize Redis with socket options
+   * await app.withRedis({
+   *   socket: {
+   *     host: 'localhost',
+   *     port: 6379
+   *   }
+   * });
+   */
+  async withRedis(config) {
     if (config) {
-      dbManager.initializeConnection('redis', config);
+      await dbManager.initializeConnection('redis', config);
     } else {
       logger.warn(
         'No Redis configuration provided. Skipping Redis connection.',
       );
     }
+
     return this;
   }
 
+  /**
+   * Initializes a MongoDB connection
+   *
+   * @param {Object} [config] - MongoDB connection configuration
+   * @param {string} [config.uri] - MongoDB connection URI
+   * @param {Object} [config.options] - Additional MongoDB connection options
+   * @returns {Tejas} Returns a Promise that resolves to this instance for chaining
+   *
+   * @example
+   * // Initialize MongoDB with URI
+   * await app.withMongo({
+   *   uri: 'mongodb://localhost:27017/myapp'
+   * });
+   *
+   * @example
+   * // Initialize MongoDB with options
+   * await app.withMongo({
+   *   uri: 'mongodb://localhost:27017/myapp',
+   *   options: {
+   *     useNewUrlParser: true,
+   *     useUnifiedTopology: true
+   *   }
+   * });
+   *
+   * @example
+   * // Chain database connections
+   * await app
+   *   .withMongo({
+   *     uri: 'mongodb://localhost:27017/myapp'
+   *   })
+   *   .withRedis({
+   *     url: 'redis://localhost:6379'
+   *   })
+   *   .withRateLimit({
+   *     maxRequests: 100,
+   *     store: 'redis'
+   *   });
+   */
   withMongo(config) {
     if (config) {
       dbManager.initializeConnection('mongodb', config);
@@ -202,8 +270,29 @@ class Tejas {
     return this;
   }
 
+  /**
+   * Adds global rate limiting to all endpoints
+   *
+   * @param {Object} config - Rate limiting configuration
+   * @param {number} [config.maxRequests=60] - Maximum number of requests allowed in the time window
+   * @param {number} [config.timeWindowSeconds=60] - Time window in seconds
+   * @param {string} [config.algorithm='sliding-window'] - Rate-limiting algorithm ('token-bucket', 'sliding-window', or 'fixed-window')
+   * @param {Object} [config.algorithmOptions] - Algorithm-specific options
+   * @param {Object} [config.redis] - Redis configuration for distributed rate limiting
+   * @param {Function} [config.keyGenerator] - Function to generate unique identifiers (defaults to IP-based)
+   * @param {Object} [config.headerFormat] - Rate limit header format configuration
+   * @returns {Tejas} The Tejas instance for chaining
+   *
+   */
   withRateLimit(config) {
-    this.setGlobalRateLimit(config);
+    if (!config) {
+      logger.warn(
+        'No rate limit configuration provided. Skipping rate limit setup.',
+      );
+      return this;
+    }
+
+    this.midair(rateLimiter(config));
     return this;
   }
 }

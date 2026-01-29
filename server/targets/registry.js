@@ -33,11 +33,85 @@ class TargetRegistry {
     }
   }
 
+  /**
+   * Matches an endpoint URL to a registered target, supporting parameterized routes.
+   *
+   * @param {string} endpoint - The endpoint URL to match
+   * @returns {Object|null} An object with `target` and `params`, or null if no match
+   */
   aim(endpoint) {
-    return this.targets.find((target) => {
-      const standardizedEndpoint = standardizePath(endpoint);
+    const standardizedEndpoint = standardizePath(endpoint);
+
+    // First, try exact match (most specific)
+    const exactMatch = this.targets.find((target) => {
       return target.getPath() === standardizedEndpoint;
     });
+
+    if (exactMatch) {
+      return { target: exactMatch, params: {} };
+    }
+
+    // Then, try parameterized route matching
+    for (const target of this.targets) {
+      const targetPath = target.getPath();
+      const params = this.matchParameterizedRoute(
+        targetPath,
+        standardizedEndpoint,
+      );
+
+      if (params !== null) {
+        return { target, params };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Matches a parameterized route pattern against an actual URL.
+   *
+   * @param {string} pattern - The route pattern (e.g., '/api/categories/:id')
+   * @param {string} url - The actual URL to match (e.g., '/api/categories/123')
+   * @returns {Object|null} An object with extracted parameters, or null if no match
+   */
+  matchParameterizedRoute(pattern, url) {
+    // Handle root path case
+    if (pattern === '/' && url === '/') {
+      return {};
+    }
+
+    // Split both pattern and URL into segments
+    const patternSegments = pattern.split('/').filter((s) => s.length > 0);
+    const urlSegments = url.split('/').filter((s) => s.length > 0);
+
+    // Must have same number of segments
+    if (patternSegments.length !== urlSegments.length) {
+      return null;
+    }
+
+    // If both are empty (root paths), they match
+    if (patternSegments.length === 0 && urlSegments.length === 0) {
+      return {};
+    }
+
+    const params = {};
+
+    // Match each segment
+    for (let i = 0; i < patternSegments.length; i++) {
+      const patternSegment = patternSegments[i];
+      const urlSegment = urlSegments[i];
+
+      // If it's a parameter (starts with :)
+      if (patternSegment.startsWith(':')) {
+        const paramName = patternSegment.slice(1); // Remove the ':'
+        params[paramName] = urlSegment;
+      } else if (patternSegment !== urlSegment) {
+        // If it's not a parameter and doesn't match, no match
+        return null;
+      }
+    }
+
+    return params;
   }
 
   getAllEndpoints(grouped) {
