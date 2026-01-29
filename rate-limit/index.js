@@ -2,6 +2,7 @@ import TejError from '../server/error.js';
 import FixedWindowRateLimiter from './algorithms/fixed-window.js';
 import SlidingWindowRateLimiter from './algorithms/sliding-window.js';
 import TokenBucketRateLimiter from './algorithms/token-bucket.js';
+import dbManager from '../database/index.js';
 
 /**
  * Creates a rate limiting middleware function with the specified algorithm and storage
@@ -37,6 +38,14 @@ function rateLimiter(options) {
     onRateLimited,
     ...limiterOptions
   } = options;
+
+  // Check Redis connectivity if Redis store is selected
+  if (store === 'redis' && !dbManager.hasConnection('redis', {})) {
+    throw new TejError(
+      400,
+      'Redis store selected but no Redis connection found. Please use withRedis() before using withRateLimit()',
+    );
+  }
 
   // Map algorithm names to their config property names
   const configMap = {

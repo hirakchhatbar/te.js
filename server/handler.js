@@ -24,6 +24,11 @@ const executeChain = async (target, ammo) => {
   chain.push(target.getHandler());
 
   const next = async () => {
+    // Check if response has already been sent (e.g., by passport.authenticate redirect)
+    if (ammo.res.headersSent || ammo.res.writableEnded || ammo.res.finished) {
+      return;
+    }
+
     const middleware = chain[i];
     i++;
 
@@ -31,9 +36,26 @@ const executeChain = async (target, ammo) => {
       middleware.length === 3 ? [ammo.req, ammo.res, next] : [ammo, next];
 
     try {
-      await middleware(...args);
+      const result = await middleware(...args);
+      
+      // Check again after middleware execution (passport might have redirected)
+      if (ammo.res.headersSent || ammo.res.writableEnded || ammo.res.finished) {
+        return;
+      }
+      
+      // If middleware returned a promise that resolved, continue chain
+      if (result && typeof result.then === 'function') {
+        await result;
+        // Check one more time after promise resolution
+        if (ammo.res.headersSent || ammo.res.writableEnded || ammo.res.finished) {
+          return;
+        }
+      }
     } catch (err) {
-      errorHandler(ammo, err);
+      // Only handle error if response hasn't been sent
+      if (!ammo.res.headersSent && !ammo.res.writableEnded && !ammo.res.finished) {
+        errorHandler(ammo, err);
+      }
     }
   };
 
@@ -62,15 +84,20 @@ const errorHandler = (ammo, err) => {
  */
 const handler = async (req, res) => {
   const url = req.url.split('?')[0];
-  const target = targetRegistry.aim(url);
+  const match = targetRegistry.aim(url);
   const ammo = new Ammo(req, res);
 
   try {
-    if (target) {
+    if (match && match.target) {
       await ammo.enhance();
 
+      // Add route parameters to ammo.payload
+      if (match.params && Object.keys(match.params).length > 0) {
+        Object.assign(ammo.payload, match.params);
+      }
+
       if (env('LOG_HTTP_REQUESTS')) logHttpRequest(ammo);
-      await executeChain(target, ammo);
+      await executeChain(match.target, ammo);
     } else {
       if (req.url === '/') {
         ammo.defaultEntry();

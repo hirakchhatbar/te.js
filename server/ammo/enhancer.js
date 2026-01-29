@@ -20,8 +20,12 @@ async function generatePayload(req) {
     obj[key] = value;
   }
 
-  const body = await bodyParser(req);
-  if (body) Object.assign(obj, body);
+  // Only parse body for methods that typically have a body
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'DELETE') {
+    const body = await bodyParser(req);
+    if (body) Object.assign(obj, body);
+  }
+  
   return obj;
 }
 

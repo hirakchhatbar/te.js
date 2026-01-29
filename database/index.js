@@ -2,16 +2,8 @@ import redis from './redis.js';
 import mongodb from './mongodb.js';
 import TejError from '../server/error.js';
 import TejLogger from 'tej-logger';
-import { createHash } from 'crypto';
 
 const logger = new TejLogger('DatabaseManager');
-
-// Helper function to create a hash of the configuration
-function createConfigHash(dbType, config) {
-  const hash = createHash('sha256');
-  hash.update(dbType + JSON.stringify(config));
-  return hash.digest('hex');
-}
 
 class DatabaseManager {
   static #instance = null;
@@ -19,6 +11,12 @@ class DatabaseManager {
 
   // Enhanced connection tracking with metadata
   #connections = new Map();
+  #initializingConnections = new Map();
+
+  // Helper method for sleeping
+  async #sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   constructor() {
     if (DatabaseManager.#instance) {
@@ -44,23 +42,20 @@ class DatabaseManager {
     return DatabaseManager.#instance;
   }
 
-  /**
-   * Initialize a database connection
-   * @param {string} dbType - Type of database ('redis', 'mongodb', etc.)
-   * @param {Object} config - Database configuration
-   * @returns {Promise<any>} Database client instance
-   */
   async initializeConnection(dbType, config) {
-    const key = createConfigHash(dbType, config);
+    const key = dbType.toLowerCase();
 
     // If a connection already exists for this config, return it
     if (this.#connections.has(key)) {
       return this.#connections.get(key).client;
     }
 
+    // Set initializing flag
+    this.#initializingConnections.set(key, true);
+
     let client;
     try {
-      switch (dbType.toLowerCase()) {
+      switch (key) {
         case 'redis':
           client = await redis.createConnection({
             isCluster: config.isCluster || false,
@@ -80,21 +75,20 @@ class DatabaseManager {
         config,
       });
 
+      // Clear initializing flag
+      this.#initializingConnections.delete(key);
+
       return client;
     } catch (error) {
+      // Clear initializing flag on error
+      this.#initializingConnections.delete(key);
       logger.error(`Failed to initialize ${dbType} connection:`, error);
       throw error;
     }
   }
 
-  /**
-   * Get a database connection
-   * @param {string} dbType - Type of database
-   * @param {Object} config - Database configuration
-   * @returns {any} Database client instance
-   */
-  getConnection(dbType, config) {
-    const key = createConfigHash(dbType, config);
+  getConnection(dbType) {
+    const key = dbType.toLowerCase();
     const connection = this.#connections.get(key);
     if (!connection) {
       throw new TejError(
@@ -105,21 +99,15 @@ class DatabaseManager {
     return connection.client;
   }
 
-  /**
-   * Close a specific database connection
-   * @param {string} dbType - Type of database
-   * @param {Object} config - Database configuration
-   * @returns {Promise<void>}
-   */
   async closeConnection(dbType, config) {
-    const key = createConfigHash(dbType, config);
+    const key = dbType.toLowerCase();
     if (!this.#connections.has(key)) {
       return;
     }
 
     try {
       const connection = this.#connections.get(key);
-      switch (dbType.toLowerCase()) {
+      switch (key) {
         case 'redis':
           await redis.closeConnection(connection.client);
           break;
@@ -159,14 +147,17 @@ class DatabaseManager {
   }
 
   /**
-   * Check if a connection exists
+   * Check if a connection exists or is being initialized
    * @param {string} dbType - Type of database
    * @param {Object} config - Database configuration
-   * @returns {boolean}
+   * @returns {{ exists: boolean, initializing: boolean }}
    */
   hasConnection(dbType, config) {
-    const key = createConfigHash(dbType, config);
-    return this.#connections.has(key);
+    const key = dbType.toLowerCase();
+    return {
+      exists: this.#connections.has(key),
+      initializing: this.#initializingConnections.has(key),
+    };
   }
 }
 
