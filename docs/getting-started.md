@@ -2,6 +2,13 @@
 
 Tejas is a lightweight Node.js framework for building powerful backend services. It features an intuitive API with aviation-inspired naming conventions.
 
+## Why Tejas?
+
+- **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
+- **Clean, Readable Code** — Aviation-inspired naming makes code self-documenting
+- **Express Compatible** — Use your existing Express middleware
+- **Built-in Features** — Rate limiting, file uploads, database connections out of the box
+
 ## Prerequisites
 
 - Node.js 18.x or higher
@@ -85,12 +92,28 @@ my-app/
     └── auth.js
 ```
 
+## Automatic Error Handling
+
+One of Tejas's most powerful features is that **you don't need to write any error handling code**. The framework catches all errors automatically:
+
+```javascript
+// ✅ No try-catch needed — if anything throws, Tejas handles it
+target.register('/data', async (ammo) => {
+  const data = await riskyDatabaseCall();
+  const processed = await anotherAsyncOperation(data);
+  ammo.fire(processed);
+});
+```
+
+Your application never crashes from unhandled exceptions, and clients always receive proper error responses. Learn more in [Error Handling](./error-handling.md).
+
 ## Next Steps
 
 - [Configuration](./configuration.md) - Learn about configuration options
 - [Routing](./routing.md) - Deep dive into the routing system
 - [Middleware](./middleware.md) - Add middleware to your application
 - [Database](./database.md) - Connect to MongoDB or Redis
+- [Error Handling](./error-handling.md) - Learn about zero-config error handling
 
 ## Example Application
 
