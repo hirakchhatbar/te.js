@@ -17,7 +17,7 @@ Welcome to the Tejas framework documentation. Use the navigation below to explor
 - [Database Integration](./database.md) - MongoDB and Redis connections
 - [Rate Limiting](./rate-limiting.md) - Protect your API from abuse
 - [File Uploads](./file-uploads.md) - Handle file uploads
-- [Error Handling](./error-handling.md) - Custom errors and exception handling
+- [Error Handling](./error-handling.md) - **Zero-config error handling** — no try-catch needed!
 
 ### Reference
 - [API Reference](./api-reference.md) - Complete API documentation
@@ -31,6 +31,7 @@ Welcome to the Tejas framework documentation. Use the navigation below to explor
 | [Getting Started](./getting-started.md) | Set up your first Tejas application |
 | [Routing](./routing.md) | Learn about the Target-based routing system |
 | [Ammo](./ammo.md) | Master request/response handling |
+| [Error Handling](./error-handling.md) | Zero-config error handling — no try-catch needed! |
 | [Rate Limiting](./rate-limiting.md) | Configure API protection |
 
 ## Version

@@ -2,6 +2,70 @@
 
 Tejas provides robust error handling to keep your application running even when unexpected errors occur.
 
+## Zero-Config Error Handling
+
+**One of Tejas's most powerful features is that you don't need to write any error handling code** — the framework catches all errors automatically at multiple levels.
+
+### How It Works
+
+Tejas wraps all middleware and route handlers with built-in error catching. Any error thrown in your code is automatically:
+
+1. **Caught** by the framework's error handler
+2. **Logged** (if exception logging is enabled)
+3. **Converted** to an appropriate HTTP error response
+
+This means your application **never crashes** from unhandled exceptions, and clients always receive proper error responses.
+
+### Write Clean Code Without Try-Catch
+
+```javascript
+// ✅ No try-catch needed — Tejas handles errors automatically
+target.register('/users/:id', async (ammo) => {
+  const user = await database.findUser(ammo.payload.id);  // If this throws, Tejas catches it
+  const posts = await database.getUserPosts(user.id);      // Same here
+  ammo.fire({ user, posts });
+});
+```
+
+Compare this to traditional frameworks where you'd need:
+
+```javascript
+// ❌ Traditional approach requires manual error handling
+app.get('/users/:id', async (req, res) => {
+  try {
+    const user = await database.findUser(req.params.id);
+    const posts = await database.getUserPosts(user.id);
+    res.json({ user, posts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+```
+
+### Automatic Error Responses
+
+When an unhandled error occurs, Tejas automatically sends a `500 Internal Server Error` response. For intentional errors using `TejError`, the appropriate status code is used.
+
+### Enable Error Logging
+
+To see caught exceptions in your logs, enable exception logging:
+
+```javascript
+const app = new Tejas({
+  log: {
+    exceptions: true  // Log all caught exceptions
+  }
+});
+```
+
+Or via environment variable:
+```bash
+LOG_EXCEPTIONS=true
+```
+
+---
+
 ## TejError Class
 
 Use `TejError` for throwing HTTP errors with status codes:
@@ -251,16 +315,24 @@ target.register('/users', (ammo) => {
 
 ## Async Error Handling
 
-Tejas automatically catches errors in async handlers:
+Tejas automatically catches errors in **both sync and async handlers** — including Promise rejections:
 
 ```javascript
-// No try-catch needed for basic cases
+// ✅ No try-catch needed — errors are caught automatically
 target.register('/async', async (ammo) => {
   const data = await fetchData(); // If this throws, Tejas catches it
   ammo.fire(data);
 });
 
-// For custom error handling, use try-catch
+// ✅ Multiple await calls? Still no try-catch needed
+target.register('/complex', async (ammo) => {
+  const user = await getUser(ammo.payload.id);
+  const profile = await getProfile(user.profileId);
+  const settings = await getSettings(user.id);
+  ammo.fire({ user, profile, settings });
+});
+
+// 🔧 Use try-catch ONLY when you need custom error handling
 target.register('/async-custom', async (ammo) => {
   try {
     const data = await fetchData();
@@ -269,10 +341,19 @@ target.register('/async-custom', async (ammo) => {
     if (error.code === 'ECONNREFUSED') {
       throw new TejError(503, 'Service temporarily unavailable');
     }
-    throw error; // Re-throw unknown errors
+    throw error; // Re-throw unknown errors (Tejas will still catch it)
   }
 });
 ```
+
+### When You Still Might Want Try-Catch
+
+While Tejas catches all errors automatically, you may want try-catch for:
+
+1. **Custom error mapping** — Convert database errors to user-friendly messages
+2. **Retry logic** — Attempt an operation multiple times before failing
+3. **Cleanup operations** — Release resources even on failure
+4. **Partial success** — Continue processing after non-critical failures
 
 ## Error Codes Reference
 

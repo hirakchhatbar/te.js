@@ -47,7 +47,7 @@ app.takeoff();
 - **Built-in Rate Limiting** — Three algorithms (Token Bucket, Sliding Window, Fixed Window)
 - **Database Ready** — First-class support for MongoDB and Redis
 - **File Uploads** — Easy file handling with size limits and type validation
-- **Robust Error Handling** — Your app stays running even with uncaught exceptions
+- **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
 - **Request Logging** — Built-in HTTP request and exception logging
 - **Auto-Discovery** — Automatic route registration from target files
 
@@ -240,6 +240,19 @@ app.midair((req, res, next) => {
 
 ## Error Handling
 
+**Tejas catches all errors automatically** — you don't need try-catch blocks in your handlers:
+
+```javascript
+// ✅ No try-catch needed — Tejas handles errors automatically
+target.register('/users/:id', async (ammo) => {
+  const user = await database.findUser(ammo.payload.id);  // If this throws, Tejas catches it
+  const posts = await database.getUserPosts(user.id);      // Same here
+  ammo.fire({ user, posts });
+});
+```
+
+For intentional errors, use `TejError`:
+
 ```javascript
 import { TejError } from 'te.js';
 
@@ -251,6 +264,14 @@ target.register('/resource/:id', async (ammo) => {
   }
   
   ammo.fire(resource);
+});
+```
+
+Enable exception logging to see caught errors:
+
+```javascript
+const app = new Tejas({
+  log: { exceptions: true }
 });
 ```
 

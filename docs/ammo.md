@@ -129,7 +129,7 @@ ammo.fire(statusCode, data, contentType)  // Full control
 
 ### throw() — Send Error Response
 
-For error responses:
+For intentional error responses:
 
 ```javascript
 // Send 500 Internal Server Error
@@ -146,6 +146,8 @@ ammo.throw(new Error('Something went wrong'));
 import { TejError } from 'te.js';
 throw new TejError(400, 'Invalid input');
 ```
+
+> **Note:** You don't need try-catch blocks in your handlers! Tejas automatically catches all errors and converts them to appropriate HTTP responses. Use `throw()` or `TejError` only for intentional, expected error conditions. See [Error Handling](./error-handling.md) for details.
 
 ### redirect() — HTTP Redirect
 
