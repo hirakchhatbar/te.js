@@ -1,6 +1,6 @@
 ---
 name: AI Native Framework Features
-overview: "A framework that uses AI/LLM internally for its own features—not to expose LLM calls to developers, but to make the framework itself smarter: intelligent error handling, semantic routing, auto-documentation, self-optimization, and more."
+overview: 'A framework that uses AI/LLM internally for its own features—not to expose LLM calls to developers, but to make the framework itself smarter: intelligent error handling, semantic routing, auto-documentation, self-optimization, and more.'
 todos: []
 isProject: false
 ---

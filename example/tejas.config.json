@@ -10,5 +10,13 @@
   "body": {
     "max_size": 5242880,
     "timeout": 15000
+  },
+  "docs": {
+    "dirTargets": "targets",
+    "output": "./openapi.json",
+    "title": "Example API",
+    "version": "1.0.0",
+    "level": 1,
+    "productionBranch": "main"
   }
 }

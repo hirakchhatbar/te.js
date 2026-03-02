@@ -109,19 +109,61 @@ class Target {
    * );
    */
   register() {
-    let args = arguments;
-    if (!args) return;
+    const args = Array.from(arguments);
+    if (args.length < 2) {
+      logger.error('register(path, [...middlewares], handler) requires at least path and handler. Skipping.');
+      return;
+    }
 
     const path = args[0];
     const shoot = args[args.length - 1];
-    const middlewares = Array.from(args).slice(1, args.length - 1);
+
+    if (typeof path !== 'string') {
+      logger.error(`register() path must be a string, got ${typeof path}. Skipping.`);
+      return;
+    }
+    if (typeof shoot !== 'function') {
+      logger.error(`register() last argument (handler) must be a function, got ${typeof shoot}. Skipping.`);
+      return;
+    }
+
+    const second = args[1];
+    const isPlainObject = (v) =>
+      typeof v === 'object' &&
+      v !== null &&
+      !Array.isArray(v) &&
+      (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
+    const isMetadataObject = isPlainObject(second);
+
+    let middlewares;
+    let metadata = null;
+    if (isMetadataObject && args.length >= 3) {
+      metadata = second;
+      middlewares = args.slice(2, -1);
+    } else {
+      middlewares = args.slice(1, -1);
+    }
 
     try {
       const endpoint = new Endpoint();
-      endpoint
-        .setPath(this.base, path)
-        .setMiddlewares(middlewares)
-        .setHandler(shoot);
+      endpoint.setPath(this.base, path);
+      if (!endpoint.getPath()) {
+        logger.error(`Invalid path for endpoint "${path}". Skipping.`);
+        return;
+      }
+      endpoint.setMiddlewares(middlewares);
+      endpoint.setHandler(shoot);
+      if (!endpoint.getHandler()) {
+        logger.error(`Invalid handler for endpoint "${path}". Skipping.`);
+        return;
+      }
+      if (metadata !== null) {
+        endpoint.setMetadata(metadata);
+      }
+      const group = targetRegistry.getCurrentSourceGroup();
+      if (group != null) {
+        endpoint.setGroup(group);
+      }
 
       targetRegistry.targets.push(endpoint);
     } catch (error) {

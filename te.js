@@ -9,8 +9,11 @@ import dbManager from './database/index.js';
 import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
 import targetHandler from './server/handler.js';
-import { findTargetFiles } from './utils/auto-register.js';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { findTargetFiles } from './utils/auto-register.js';
+import { registerDocRoutes } from './auto-docs/ui/docs-ui.js';
 
 const logger = new TejLogger('Tejas');
 
@@ -117,13 +120,34 @@ class Tejas {
    * @throws {Error} If target files cannot be registered
    */
   registerTargetsDir() {
+    const baseDir = path.join(process.cwd(), process.env.DIR_TARGETS || '');
     findTargetFiles()
       .then((targetFiles) => {
-        if (targetFiles) {
+        if (!targetFiles?.length) return;
+        (async () => {
           for (const file of targetFiles) {
-            import(pathToFileURL(`${file.parentPath}/${file.name}`));
+            const parentPath = file.path || '';
+            const fullPath = path.isAbsolute(parentPath)
+              ? path.join(parentPath, file.name)
+              : path.join(baseDir, parentPath, file.name);
+            const relativePath = path.relative(baseDir, fullPath);
+            const groupId = relativePath
+              .replace(/\.target\.js$/i, '')
+              .replace(/\\/g, '/')
+              || 'index';
+            targetRegistry.setCurrentSourceGroup(groupId);
+            try {
+              await import(pathToFileURL(fullPath).href);
+            } finally {
+              targetRegistry.setCurrentSourceGroup(null);
+            }
           }
-        }
+        })().catch((err) => {
+          logger.error(
+            `Tejas could not register target files. Error: ${err}`,
+            false,
+          );
+        });
       })
       .catch((err) => {
         logger.error(
@@ -295,6 +319,33 @@ class Tejas {
     this.midair(rateLimiter(config));
     return this;
   }
+
+  /**
+   * Serves the API documentation at GET /docs and GET /docs/openapi.json from a pre-generated spec file.
+   * Generate the spec with `tejas generate:docs`, then call this to serve it on your app.
+   * Uses Scalar API Reference; default layout is 'classic' so the test request appears on the same page (not in a dialog).
+   *
+   * @param {Object} [config] - Configuration
+   * @param {string} [config.specPath='./openapi.json'] - Path to the OpenAPI spec JSON file (relative to process.cwd())
+   * @param {object} [config.scalarConfig] - Optional Scalar API Reference config (e.g. { layout: 'modern' } for dialog try-it)
+   * @returns {Tejas} The Tejas instance for chaining
+   *
+   * @example
+   * app.serveDocs({ specPath: './openapi.json' });
+   * app.serveDocs({ specPath: './openapi.json', scalarConfig: { layout: 'modern' } });
+   * app.takeoff();
+   */
+  serveDocs(config = {}) {
+    const specPath = path.resolve(process.cwd(), config.specPath || './openapi.json');
+    const { scalarConfig } = config;
+    const getSpec = async () => {
+      const content = await readFile(specPath, 'utf8');
+      return JSON.parse(content);
+    };
+    registerDocRoutes({ getSpec, specUrl: '/docs/openapi.json', scalarConfig }, targetRegistry);
+    return this;
+  }
+
 }
 
 const listAllEndpoints = (grouped = false) => {
