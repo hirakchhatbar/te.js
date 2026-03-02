@@ -18,9 +18,7 @@ example/
 ├── index.js              # App setup, global middleware, rate limit
 ├── targets/              # Routes + handlers
 │   ├── index.target.js   # /, /health, /routes
-│   ├── hello.target.js   # Parameterized routes, query params, redirect
-│   ├── users.target.js   # CRUD (GET, POST, PUT, DELETE)
-│   ├── user.target.js    # File uploads (single + multi)
+│   ├── users.target.js   # CRUD + file uploads (/users, /users/:id, …)
 │   └── cache.target.js   # Redis key-value (optional)
 └── services/             # Business logic
     ├── user.service.js  # In-memory user CRUD
@@ -31,44 +29,30 @@ example/
 
 ### Index
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Default HTML entry |
-| GET | `/health` | Health check |
-| GET | `/routes` | List all registered routes (grouped) |
+| Method | Path      | Description                          |
+| ------ | --------- | ------------------------------------ |
+| GET    | `/`       | Default HTML entry                   |
+| GET    | `/health` | Health check                         |
+| GET    | `/routes` | List all registered routes (grouped) |
 
-### Hello
+### Users
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/hello` | Basic response |
-| GET | `/hello/:name` | Parameterized route |
-| GET | `/hello/greet?name=Alice` | Query params |
-| GET | `/hello/redirect` | Redirects to /hello |
-
-### Users (CRUD)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/users` | List all users |
-| POST | `/users` | Create user (JSON body) |
-| GET | `/users/:id` | Get user by id |
-| PUT | `/users/:id` | Update user |
-| DELETE | `/users/:id` | Delete user |
-
-### User (File Uploads)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/user/updateProfileImage` | Single file (field: image) |
-| POST | `/user/uploadDocuments` | Multiple files (field: documents) |
+| Method | Path                            | Description                       |
+| ------ | ------------------------------- | --------------------------------- |
+| GET    | `/users`                        | List all users                    |
+| POST   | `/users`                        | Create user (JSON body)           |
+| GET    | `/users/:id`                    | Get user by id                    |
+| PUT    | `/users/:id`                    | Update user                       |
+| DELETE | `/users/:id`                    | Delete user                       |
+| POST   | `/users/:id/updateProfileImage` | Single file (field: image)        |
+| POST   | `/users/:id/uploadDocuments`    | Multiple files (field: documents) |
 
 ### Cache (requires Redis)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/cache/:key` | Get value |
-| POST | `/cache` | Set value (body: key, value, ttl?) |
+| Method | Path          | Description                        |
+| ------ | ------------- | ---------------------------------- |
+| GET    | `/cache/:key` | Get value                          |
+| POST   | `/cache`      | Set value (body: key, value, ttl?) |
 
 ## curl Examples
 
@@ -79,11 +63,6 @@ curl http://localhost:1403/health
 # List routes
 curl http://localhost:1403/routes
 
-# Hello
-curl http://localhost:1403/hello
-curl http://localhost:1403/hello/Alice
-curl "http://localhost:1403/hello/greet?name=Bob"
-
 # Users CRUD
 curl -X POST http://localhost:1403/users -H "Content-Type: application/json" -d '{"name":"John","email":"john@example.com"}'
 curl http://localhost:1403/users
@@ -92,10 +71,10 @@ curl -X PUT http://localhost:1403/users/1 -H "Content-Type: application/json" -d
 curl -X DELETE http://localhost:1403/users/1
 
 # File upload (single)
-curl -X POST http://localhost:1403/user/updateProfileImage -F "image=@./photo.jpg"
+curl -X POST http://localhost:1403/users/1/updateProfileImage -F "image=@./photo.jpg"
 
 # File upload (multiple)
-curl -X POST http://localhost:1403/user/uploadDocuments -F "documents=@./doc1.pdf" -F "documents=@./doc2.pdf"
+curl -X POST http://localhost:1403/users/1/uploadDocuments -F "documents=@./doc1.pdf" -F "documents=@./doc2.pdf"
 
 # Cache (requires REDIS_URL)
 REDIS_URL=redis://localhost:6379 npm start
@@ -132,5 +111,45 @@ $env:REDIS_URL="redis://localhost:6379"; npm start
 - **Rate limiting** — Memory store (60 req/min)
 - **Services** — Business logic in `services/`
 - **listAllEndpoints** — Route discovery at `/routes`
+
+## Documentation generation
+
+Generate OpenAPI docs and serve them at `/docs`:
+
+```bash
+npx tejas generate:docs
+```
+
+Then use `app.serveDocs({ specPath: './openapi.json' })` in `index.js` (already configured in this example).
+
+### Generate docs on push to production (inbuilt)
+
+To regenerate docs automatically when pushing to your production branch:
+
+1. **Configure** the production branch and (optionally) doc options in `tejas.config.json`:
+
+```json
+"docs": {
+  "dirTargets": "targets",
+  "output": "./openapi.json",
+  "productionBranch": "main"
+}
+```
+
+Set `LLM_API_KEY` (or `OPENAI_API_KEY`) in the environment for non-interactive generation.
+
+2. **Add a pre-push hook** (e.g. with Husky):
+
+```bash
+npx husky add .husky/pre-push "npx tejas docs:on-push"
+```
+
+When you push to `main` (or your configured branch), the framework will run `tejas generate:docs --ci` before the push completes, so `openapi.json` (and optionally `API_OVERVIEW.md`) stay in sync.
+
+For CI pipelines, run:
+
+```bash
+npx tejas generate:docs --ci
+```
 
 See [te.js documentation](https://tejas-documentation.vercel.app) for more.

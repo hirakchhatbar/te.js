@@ -50,6 +50,7 @@ app.takeoff();
 - **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
 - **Request Logging** — Built-in HTTP request and exception logging
 - **Auto-Discovery** — Automatic route registration from target files
+- **Auto-Documentation** — Generate OpenAPI specs with `tejas generate:docs`; optionally trigger doc generation when pushing to your production branch (`tejas docs:on-push`)
 
 ## Quick Start
 
@@ -103,14 +104,14 @@ node index.js
 
 ## Core Concepts
 
-| Tejas Term | Purpose | Express Equivalent |
-|------------|---------|-------------------|
-| `Tejas` | Application instance | `express()` |
-| `Target` | Route group/router | `Router()` |
-| `Ammo` | Request/response context | `req` + `res` |
-| `fire()` | Send response | `res.send()` |
-| `midair()` | Register middleware | `use()` |
-| `takeoff()` | Start server | `listen()` |
+| Tejas Term  | Purpose                  | Express Equivalent |
+| ----------- | ------------------------ | ------------------ |
+| `Tejas`     | Application instance     | `express()`        |
+| `Target`    | Route group/router       | `Router()`         |
+| `Ammo`      | Request/response context | `req` + `res`      |
+| `fire()`    | Send response            | `res.send()`       |
+| `midair()`  | Register middleware      | `use()`            |
+| `takeoff()` | Start server             | `listen()`         |
 
 ## Configuration
 
@@ -126,8 +127,8 @@ const app = new Tejas({
   port: 3000,
   log: {
     http_requests: true,
-    exceptions: true
-  }
+    exceptions: true,
+  },
 });
 ```
 
@@ -151,16 +152,14 @@ const app = new Tejas({
 ```javascript
 const app = new Tejas();
 
-app
-  .withRedis({ url: 'redis://localhost:6379' })
-  .takeoff();
+app.withRedis({ url: 'redis://localhost:6379' }).takeoff();
 ```
 
 ### MongoDB
 
 ```javascript
 app.takeoff({
-  withMongo: { uri: 'mongodb://localhost:27017/myapp' }
+  withMongo: { uri: 'mongodb://localhost:27017/myapp' },
 });
 ```
 
@@ -175,7 +174,7 @@ app
     maxRequests: 100,
     timeWindowSeconds: 60,
     algorithm: 'sliding-window', // or 'token-bucket', 'fixed-window'
-    store: 'redis' // or 'memory'
+    store: 'redis', // or 'memory'
   })
   .takeoff();
 ```
@@ -187,7 +186,7 @@ import { Target, TejFileUploader } from 'te.js';
 
 const upload = new TejFileUploader({
   destination: 'uploads/',
-  maxFileSize: 5 * 1024 * 1024 // 5MB
+  maxFileSize: 5 * 1024 * 1024, // 5MB
 });
 
 const target = new Target('/files');
@@ -245,8 +244,8 @@ app.midair((req, res, next) => {
 ```javascript
 // ✅ No try-catch needed — Tejas handles errors automatically
 target.register('/users/:id', async (ammo) => {
-  const user = await database.findUser(ammo.payload.id);  // If this throws, Tejas catches it
-  const posts = await database.getUserPosts(user.id);      // Same here
+  const user = await database.findUser(ammo.payload.id); // If this throws, Tejas catches it
+  const posts = await database.getUserPosts(user.id); // Same here
   ammo.fire({ user, posts });
 });
 ```
@@ -258,11 +257,11 @@ import { TejError } from 'te.js';
 
 target.register('/resource/:id', async (ammo) => {
   const resource = await findResource(ammo.payload.id);
-  
+
   if (!resource) {
     throw new TejError(404, 'Resource not found');
   }
-  
+
   ammo.fire(resource);
 });
 ```
@@ -271,7 +270,7 @@ Enable exception logging to see caught errors:
 
 ```javascript
 const app = new Tejas({
-  log: { exceptions: true }
+  log: { exceptions: true },
 });
 ```
 
@@ -298,11 +297,11 @@ my-app/
 ```javascript
 const app = new Tejas(options);
 
-app.midair(middleware)      // Add global middleware
-app.withRedis(config)       // Initialize Redis connection
-app.withMongo(config)       // Initialize MongoDB connection
-app.withRateLimit(config)   // Enable rate limiting
-app.takeoff(options)        // Start the server
+app.midair(middleware); // Add global middleware
+app.withRedis(config); // Initialize Redis connection
+app.withMongo(config); // Initialize MongoDB connection
+app.withRateLimit(config); // Enable rate limiting
+app.takeoff(options); // Start the server
 ```
 
 ### Target Class
@@ -310,30 +309,41 @@ app.takeoff(options)        // Start the server
 ```javascript
 const target = new Target('/base');
 
-target.midair(middleware)           // Add target-level middleware
-target.register(path, ...handlers)  // Register an endpoint
+target.midair(middleware); // Add target-level middleware
+target.register(path, ...handlers); // Register an endpoint
 ```
 
 ### Ammo Object
 
 ```javascript
 // Properties
-ammo.GET, ammo.POST, ammo.PUT, ammo.DELETE  // HTTP method flags
-ammo.payload    // Request body + query params + route params
-ammo.headers    // Request headers
-ammo.ip         // Client IP address
-ammo.path       // Request path
-ammo.method     // HTTP method string
+ammo.GET, ammo.POST, ammo.PUT, ammo.DELETE; // HTTP method flags
+ammo.payload; // Request body + query params + route params
+ammo.headers; // Request headers
+ammo.ip; // Client IP address
+ammo.path; // Request path
+ammo.method; // HTTP method string
 
 // Methods
-ammo.fire(data)              // Send 200 response
-ammo.fire(status, data)      // Send response with status
-ammo.throw(error)            // Send error response
-ammo.redirect(url)           // Redirect
-ammo.notFound()              // 404 response
-ammo.notAllowed()            // 405 response
-ammo.unauthorized()          // 401 response
+ammo.fire(data); // Send 200 response
+ammo.fire(status, data); // Send response with status
+ammo.throw(error); // Send error response
+ammo.redirect(url); // Redirect
+ammo.notFound(); // 404 response
+ammo.notAllowed(); // 405 response
+ammo.unauthorized(); // 401 response
 ```
+
+## OpenAPI & doc generation
+
+Generate and serve OpenAPI docs from your targets:
+
+```bash
+npx tejas generate:docs          # interactive
+npx tejas generate:docs --ci    # non-interactive (config + env)
+```
+
+Use a pre-push hook to regenerate docs when pushing to your production branch (e.g. `main`). Add to `.husky/pre-push`: `npx tejas docs:on-push`. Configure the branch and options in `tejas.config.json` under `"docs"` (e.g. `productionBranch`, `output`, `dirTargets`), and set `LLM_API_KEY` (or `OPENAI_API_KEY`) for CI mode.
 
 ## Documentation
 

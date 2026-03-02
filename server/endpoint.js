@@ -7,6 +7,9 @@ class Endpoint {
     this.path = '';
     this.middlewares = [];
     this.handler = null;
+    this.metadata = null;
+    /** Source group (e.g. target file id) for grouping in docs. Set by loader before register(). */
+    this.group = null;
   }
 
   setPath(base, path) {
@@ -37,6 +40,16 @@ class Endpoint {
     return this;
   }
 
+  setMetadata(metadata) {
+    this.metadata = metadata ?? null;
+    return this;
+  }
+
+  setGroup(group) {
+    this.group = group ?? null;
+    return this;
+  }
+
   getPath() {
     return this.path;
   }
@@ -47,6 +60,14 @@ class Endpoint {
 
   getHandler() {
     return this.handler;
+  }
+
+  getMetadata() {
+    return this.metadata;
+  }
+
+  getGroup() {
+    return this.group;
   }
 }
 

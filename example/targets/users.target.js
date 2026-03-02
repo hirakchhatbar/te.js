@@ -1,7 +1,12 @@
-import { Target, TejError } from 'te.js';
+import { Target, TejError, TejFileUploader } from 'te.js';
 import userService from '../services/user.service.js';
 
 const users = new Target('/users');
+
+const uploader = new TejFileUploader({
+  destination: 'public/uploads',
+  maxFileSize: 5 * 1024 * 1024, // 5MB
+});
 
 users.register('/', (ammo) => {
   if (ammo.GET) {
@@ -36,4 +41,20 @@ users.register('/:id', (ammo) => {
   }
 
   ammo.notAllowed();
+});
+
+users.register('/:id/updateProfileImage', uploader.file('image'), (ammo) => {
+  const { image } = ammo.payload;
+  ammo.fire(200, {
+    message: 'Profile image updated successfully!',
+    file: image,
+  });
+});
+
+users.register('/:id/uploadDocuments', uploader.files('documents'), (ammo) => {
+  const { documents } = ammo.payload;
+  ammo.fire(200, {
+    message: `${documents?.length ?? 0} document(s) uploaded`,
+    files: documents,
+  });
 });

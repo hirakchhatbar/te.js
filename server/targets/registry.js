@@ -12,6 +12,16 @@ class TargetRegistry {
     // TODO - Add a default target
     this.targets = [];
     this.globalMiddlewares = [];
+    /** Current source group (target file id) set by loader before importing a target file. */
+    this._currentSourceGroup = null;
+  }
+
+  setCurrentSourceGroup(group) {
+    this._currentSourceGroup = group ?? null;
+  }
+
+  getCurrentSourceGroup() {
+    return this._currentSourceGroup;
   }
 
   addGlobalMiddleware() {
@@ -114,7 +124,26 @@ class TargetRegistry {
     return params;
   }
 
-  getAllEndpoints(grouped) {
+  /**
+   * Get all registered endpoints.
+   *
+   * @param {boolean|{ detailed?: boolean, grouped?: boolean }} [options] - If boolean, treated as grouped (backward compat).
+   *   If object: detailed=true returns full metadata per endpoint; grouped=true returns paths grouped by first segment.
+   * @returns {string[]|Object|Array<{ path: string, metadata: object|null, handler: function }>}
+   */
+  getAllEndpoints(options = {}) {
+    const grouped =
+      typeof options === 'boolean' ? options : (options && options.grouped);
+    const detailed =
+      typeof options === 'object' && options && options.detailed === true;
+
+    if (detailed) {
+      return this.targets.map((t) => ({
+        path: t.getPath(),
+        metadata: t.getMetadata(),
+        handler: t.getHandler(),
+      }));
+    }
     if (grouped) {
       return this.targets.reduce((acc, target) => {
         const group = target.getPath().split('/')[1];
@@ -122,9 +151,8 @@ class TargetRegistry {
         acc[group].push(target.getPath());
         return acc;
       }, {});
-    } else {
-      return this.targets.map((target) => target.getPath());
     }
+    return this.targets.map((target) => target.getPath());
   }
 }
 

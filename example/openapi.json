@@ -1,0 +1,390 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API",
+    "version": "1.0.0",
+    "description": "# API Documentation\n\n**Version:** 1.0.0\n\n## Project Summary\n\nThis API provides a lightweight service combining user account management, a Redis-backed caching layer, and system introspection utilities. It supports full CRUD operations on user resources—including file uploads for profile images and bulk documents—offers key-value caching with optional TTL, and exposes health-check and route discovery endpoints for operational monitoring and API introspection. User data is maintained in-memory for demonstration purposes, and uploaded files are stored on disk with configurable size limits.\n\n---\n\n## APIs Available\n\n### Users\nManages user accounts with full CRUD operations: create, retrieve, update, and delete users. Additionally supports profile image uploads and bulk document uploads, with files stored on disk and configurable size limits.\n\n### Cache\nProvides a key-value caching layer backed by Redis. Store arbitrary values with an optional time-to-live (TTL) and retrieve them by key. A middleware guard ensures the Redis service is available before processing any cache request.\n\n### System & Discovery\nCore application utilities including a default landing endpoint, a health-check endpoint reporting server status with a current timestamp, and a route discovery endpoint that lists all registered endpoints grouped by source for API introspection.\n\n---\n\n## Key Endpoints\n\n### Getting Started\n\n| Method | Path | Description |\n|--------|------|-------------|\n| `GET` | `/` | Default landing entry point for the API. |\n| `GET` | `/health` | Health check — returns server status and current timestamp. |\n| `GET` | `/routes` | Route discovery — lists all registered endpoints grouped by source. |\n\n### User Management\n\n| Method | Path | Description |\n|--------|------|-------------|\n| `GET` | `/users` | Retrieve a list of all users. |\n| `POST` | `/users` | Create a new user. |\n| `GET` | `/users/{id}` | Retrieve a specific user by ID. |\n| `PUT` | `/users/{id}` | Update an existing user by ID. |\n| `DELETE` | `/users/{id}` | Delete a user by ID. |\n| `GET` | `/users/{id}/updateProfileImage` | Upload or update a user's profile image. |\n| `GET` | `/users/{id}/uploadDocuments` | Bulk upload documents for a user. |\n\n### Cache Operations\n\n| Method | Path | Description |\n|--------|------|-------------|\n| `POST` | `/cache` | Store a value in the cache with an optional TTL. |\n| `GET` | `/cache/{key}` | Retrieve a cached value by its key. |\n\n---\n\n## Additional Notes\n\n### Data Storage\n- **User data** is maintained in-memory and is not persisted across server restarts (demonstration mode).\n- **Uploaded files** (profile images, documents) are stored on disk with configurable size limits.\n\n### Cache Availability\nAll cache endpoints are protected by a middleware guard that verifies the Redis service is reachable before processing requests. If Redis is unavailable, cache requests will be rejected before reaching the handler.\n\n### File Uploads\n- **Profile images**: Single-file upload tied to a specific user via `/users/{id}/updateProfileImage`.\n- **Bulk documents**: Multi-file upload supported via `/users/{id}/uploadDocuments`.\n\nFile size limits are configurable at the application level.\n\n---\n\n## Quick Start\n\n1. **Verify the API is running** — call `GET /health` and confirm a successful status response with a timestamp.\n2. **Explore available routes** — call `GET /routes` to discover all registered endpoints.\n3. **Create a user** — send a `POST` request to `/users` with the required user payload.\n4. **Store and retrieve cache entries** — use `POST /cache` to set a key-value pair, then `GET /cache/{key}` to retrieve it."
+  },
+  "tags": [
+    {
+      "name": "Users",
+      "description": "Manages user accounts with full CRUD operations including creation, retrieval, updating, and deletion. Also supports profile image uploads and bulk document uploads, storing files on disk with configurable size limits. User data is maintained in-memory for demonstration purposes."
+    },
+    {
+      "name": "Cache",
+      "description": "Provides a key-value caching layer backed by Redis. Consumers can store arbitrary values with an optional time-to-live and retrieve them by key. A middleware guard ensures the Redis-backed cache service is available before processing any request."
+    },
+    {
+      "name": "System & Discovery",
+      "description": "Provides core application utilities: a default landing entry point, a health-check endpoint that reports server status with a current timestamp, and a route discovery endpoint that lists all registered endpoints grouped by their source, enabling API introspection."
+    }
+  ],
+  "paths": {
+    "/cache/{key}": {
+      "get": {
+        "summary": "Get cached value by key",
+        "description": "Retrieves a cached value from Redis by its key. Requires the cache service (Redis) to be available.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "Path parameter: key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cached value found and returned successfully"
+          },
+          "404": {
+            "description": "No cached value found for the given key"
+          },
+          "405": {
+            "description": "Method not allowed (non-GET request made to this endpoint)"
+          },
+          "503": {
+            "description": "Cache service unavailable. Redis is not configured or reachable."
+          }
+        },
+        "tags": [
+          "Cache"
+        ]
+      }
+    },
+    "/cache": {
+      "post": {
+        "summary": "Store a value in the cache",
+        "description": "Sets a key-value pair in the Redis cache with an optional TTL (time-to-live) in seconds. Requires the cache service (Redis) to be available.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "The cache key under which to store the value"
+                  },
+                  "value": {
+                    "type": "any",
+                    "description": "The value to cache; can be any type but must not be undefined"
+                  },
+                  "ttl": {
+                    "type": "integer",
+                    "description": "Time-to-live in seconds for the cached entry; if omitted, the entry does not expire automatically"
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Value cached successfully. Returns an object with a confirmation message and the cache key."
+          },
+          "400": {
+            "description": "Validation error: 'key' and 'value' are required fields"
+          },
+          "405": {
+            "description": "Method not allowed. Only POST is accepted on this endpoint."
+          },
+          "503": {
+            "description": "Cache service unavailable. Redis is not configured or not reachable (REDIS_URL not set)."
+          }
+        },
+        "tags": [
+          "Cache"
+        ]
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Submit data to the default entry endpoint",
+        "description": "Handles POST requests to the root endpoint by returning the default entry response. No specific body processing is performed.\n\nAccepts any HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS.",
+        "responses": {
+          "200": {
+            "description": "Default entry content returned successfully"
+          }
+        },
+        "tags": [
+          "System & Discovery"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Post health check request",
+        "description": "Accepts a POST request and returns the current health status and timestamp. No request body is required; any provided body is ignored.\n\nAccepts any HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy. Returns an object with `status` ('ok') and `timestamp` (ISO 8601 string)."
+          }
+        },
+        "tags": [
+          "System & Discovery"
+        ]
+      }
+    },
+    "/routes": {
+      "get": {
+        "summary": "Create or trigger route listing via POST",
+        "description": "Returns the same grouped listing of all registered endpoints. The handler does not differentiate by HTTP method, so POST behaves identically to GET.\n\nAccepts any HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS.",
+        "responses": {
+          "200": {
+            "description": "A grouped object of all registered endpoints and their supported methods"
+          }
+        },
+        "tags": [
+          "System & Discovery"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "summary": "List all users",
+        "description": "Returns an array of all users currently stored in the system.",
+        "responses": {
+          "200": {
+            "description": "An array of user objects. Returns an empty array if no users exist."
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "post": {
+        "summary": "Create a new user",
+        "description": "Creates a new user with the provided name and email. Returns the newly created user object with a generated id and createdAt timestamp.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                },
+                "required": [
+                  "name",
+                  "email"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully. Returns the new user object including id, name, email, and createdAt fields."
+          },
+          "400": {
+            "description": "Validation error. Both name and email are required."
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "summary": "Get user by id",
+        "description": "Retrieves a single user by their unique identifier.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Path parameter: id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User object returned successfully"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "put": {
+        "summary": "Update user",
+        "description": "Updates an existing user's name and/or email by their unique identifier.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Path parameter: id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "delete": {
+        "summary": "Delete user",
+        "description": "Deletes a user by their unique identifier.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Path parameter: id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted successfully"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}/updateProfileImage": {
+      "get": {
+        "summary": "Upload a profile image for a user",
+        "description": "Uploads a single profile image file for the specified user. Uses multipart/form-data with a file field named 'image'. Maximum file size is 5MB. Files are stored in 'public/uploads'.\n\nAccepts any HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Path parameter: id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "file",
+                    "description": "The profile image file to upload (max 5MB)"
+                  }
+                },
+                "required": [
+                  "image"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile image uploaded successfully. Returns a message and the uploaded file metadata."
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}/uploadDocuments": {
+      "get": {
+        "summary": "Upload documents for a user",
+        "description": "Uploads multiple document files for the user identified by :id. Files are processed by the TejFileUploader middleware with a max file size of 5MB each and stored in 'public/uploads'.\n\nAccepts any HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Path parameter: id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documents": {
+                    "type": "array",
+                    "description": "Array of document files to upload. Field name must be 'documents'. Each file must not exceed 5MB."
+                  }
+                },
+                "required": [
+                  "documents"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Documents uploaded successfully. Returns a message indicating the number of documents uploaded and an array of file metadata."
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    }
+  }
+}

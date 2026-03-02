@@ -14,6 +14,9 @@ app.withRateLimit({
   timeWindowSeconds: 60,
 });
 
+// Serve API docs at /docs (requires openapi.json from `tejas generate:docs`)
+app.serveDocs({ specPath: './openapi.json' });
+
 // Optional: Redis for /cache endpoints. Set REDIS_URL to enable.
 const redisUrl = process.env.REDIS_URL;
 

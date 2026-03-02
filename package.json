@@ -4,6 +4,9 @@
   "description": "A nodejs framework",
   "type": "module",
   "main": "te.js",
+  "bin": {
+    "tejas": "./cli/index.js"
+  },
   "scripts": {
     "start": "node te.js",
     "test": "vitest",
