@@ -36,6 +36,7 @@ Create a `tejas.config.json` in your project root:
 
 ```json
 {
+  "entry": "index.js",
   "port": 3000,
   "dir": {
     "targets": "targets"
@@ -70,6 +71,7 @@ DIR_TARGETS=targets
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `entry` | string | *(see below)* | Entry file for `tejas fly`. Resolved in order: this value, package.json `main`, then `index.js`, `app.js`, or `server.js` |
 | `port` | number | `1403` | Server port number |
 | `dir.targets` | string | `"targets"` | Directory containing target files |
 
