@@ -6,7 +6,7 @@ Welcome to the documentation for **Tejas** — a Node.js framework for building 
 
 ### Getting Started
 
-- [Introduction & Quick Start](./getting-started.md) — Install, create your first app, and core concepts
+- [Introduction & Quick Start](./getting-started.md) — AI-assisted setup (MCP), install, create your first app, and core concepts
 - [Configuration](./configuration.md) — Config sources, all available options, and environment variables
 
 ### Core Concepts

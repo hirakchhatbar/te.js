@@ -4,10 +4,44 @@ Tejas is a lightweight Node.js framework for building powerful backend services.
 
 ## Why Tejas?
 
+- **AI-Native** — MCP server gives your AI assistant full framework knowledge for correct code generation
 - **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
 - **Clean, Readable Code** — Aviation-inspired naming makes code self-documenting
 - **Express Compatible** — Use your existing Express middleware
 - **Built-in Features** — Rate limiting, file uploads, database connections out of the box
+
+## AI-Assisted Setup (MCP) — Recommended
+
+The fastest way to start building with Tejas is through your AI assistant. The **Tejas MCP server** (`tejas-mcp`) gives AI tools full access to framework documentation, validated code examples, and purpose-built tools that scaffold projects and generate correct te.js code.
+
+### Setup
+
+**Cursor** — create or edit `.cursor/mcp.json` in your workspace:
+
+```json
+{
+  "mcpServers": {
+    "tejas": {
+      "command": "npx",
+      "args": ["-y", "tejas-mcp"]
+    }
+  }
+}
+```
+
+**Other MCP-compatible IDEs** — run `npx tejas-mcp` as the stdio server command. No API keys required.
+
+### What you can do
+
+Once connected, prompt your assistant naturally:
+
+- *"Scaffold a new te.js project called my-api on port 5000"*
+- *"Create a REST API with user CRUD routes using te.js"*
+- *"Add a /health endpoint that returns system uptime"*
+
+The MCP server provides these tools: `scaffold_project`, `generate_target`, `generate_app_entry`, `generate_config`, `get_documentation`, and `search_docs`.
+
+---
 
 ## Prerequisites
 

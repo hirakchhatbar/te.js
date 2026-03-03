@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="https://tejas-documentation.vercel.app">Documentation</a> •
+  <a href="#ai-assisted-setup-mcp">AI Setup (MCP)</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#features">Features</a> •
   <a href="./docs">Full Docs</a>
@@ -42,6 +43,7 @@ app.takeoff();
 
 ## Features
 
+- **AI-Native (MCP)** — Ship with an MCP server so AI assistants can scaffold projects, generate routes, and write correct code with full framework knowledge
 - **Simple Routing** — Clean, method-agnostic URL structures with parameterized routes
 - **Express Compatible** — Use existing Express middleware alongside Tejas middleware
 - **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
@@ -52,6 +54,29 @@ app.takeoff();
 - **Interactive API Docs** — Serve a Scalar API reference UI with `app.serveDocs()`
 - **Auto-Discovery** — Automatic route registration from `.target.js` files
 - **Request Logging** — Built-in HTTP request and exception logging
+
+## AI-Assisted Setup (MCP)
+
+> **Recommended** — The best way to get started with Tejas in the age of AI.
+
+The [Tejas MCP server](https://www.npmjs.com/package/tejas-mcp) gives your IDE's AI assistant full knowledge of the framework — documentation, code examples, and purpose-built tools to scaffold projects and generate correct code. No more hallucinated APIs.
+
+**Cursor** — add this to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "tejas": {
+      "command": "npx",
+      "args": ["-y", "tejas-mcp"]
+    }
+  }
+}
+```
+
+**Other MCP-compatible IDEs** — run `npx tejas-mcp` as the server command (stdio transport, no config needed).
+
+Once connected, prompt your AI with things like *"Scaffold a new te.js project called my-api"* or *"Create a REST API with user CRUD routes"* — the assistant will generate framework-correct code using real te.js patterns.
 
 ## Quick Start
 
