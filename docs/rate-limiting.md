@@ -391,4 +391,3 @@ The built-in backends (`MemoryStorage` and `RedisStorage`) both extend this base
 5. **Provide clear error messages** — Tell users when they can retry
 6. **Consider user tiers** — Premium users may need higher limits
 7. **Monitor and adjust** — Track rate limit hits and adjust accordingly
-

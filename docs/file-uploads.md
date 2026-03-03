@@ -331,4 +331,3 @@ target.register('/images/:filename', (ammo) => {
 4. **Store outside web root** — For sensitive files, store in private directories
 5. **Clean up on errors** — Delete uploaded files if validation fails
 6. **Scan for malware** — For production systems, integrate virus scanning
-

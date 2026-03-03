@@ -60,6 +60,7 @@ const app = new Tejas({
 ```
 
 Or via environment variable:
+
 ```bash
 LOG_EXCEPTIONS=true
 ```
@@ -414,4 +415,3 @@ Once a response has been sent (`res.headersSent` is true), no further middleware
 5. **Be consistent** — Use the same error format throughout your API
 6. **Validate early** — Check input before processing
 7. **Use TejError** — For HTTP-specific errors with status codes
-

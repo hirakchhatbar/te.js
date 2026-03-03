@@ -359,4 +359,3 @@ target.register('/profile', authMiddleware, (ammo) => {
   });
 });
 ```
-

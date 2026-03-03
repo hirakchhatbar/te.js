@@ -213,3 +213,4 @@ npx tejas generate:docs
 - [CLI Reference](./cli.md) — Detailed CLI command documentation
 - [Configuration](./configuration.md) — Full framework configuration reference
 - [Routing](./routing.md) — Learn about endpoint metadata
+
