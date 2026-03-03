@@ -24,7 +24,7 @@ const middleware = (req, res, next) => {
 };
 ```
 
-Tejas automatically detects which style you're using based on the function's argument count.
+Tejas automatically detects which style you're using based on the function's argument count: functions with 3 parameters are treated as Express-style `(req, res, next)`, while functions with 2 parameters are treated as Tejas-style `(ammo, next)`.
 
 ## Middleware Levels
 
@@ -286,7 +286,7 @@ target.register('/auth/google/callback',
 
 ## Async Middleware
 
-Middleware can be async:
+Middleware can be async. Errors thrown inside async middleware are automatically caught by the framework:
 
 ```javascript
 const asyncMiddleware = async (ammo, next) => {
@@ -298,7 +298,7 @@ const asyncMiddleware = async (ammo, next) => {
 
 ## Terminating Early
 
-To stop the middleware chain, simply don't call `next()`:
+To stop the middleware chain, send a response without calling `next()`. Once a response is sent (`ammo.fire()`, `ammo.throw()`, etc.), the framework detects that `res.headersSent` is `true` and stops executing further middleware or the handler:
 
 ```javascript
 const earlyReturn = (ammo, next) => {

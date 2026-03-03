@@ -40,11 +40,14 @@ app.withRateLimit({
   // Algorithm-specific options
   algorithmOptions: {},
   
+  // Key prefix for storage keys (useful for namespacing)
+  keyPrefix: 'rl:',
+  
   // Header format
   headerFormat: {
     type: 'standard',         // 'standard' | 'legacy' | 'both'
-    draft7: false,            // Include RateLimit-Policy header
-    draft8: false             // Use delta-seconds for reset time
+    draft7: false,            // Include RateLimit-Policy header (e.g. "100;w=60")
+    draft8: false             // Use delta-seconds for RateLimit-Reset instead of Unix timestamp
   },
   
   // Custom handler when rate limited
@@ -223,7 +226,7 @@ Adds: `RateLimit-Policy: 100;w=60`
 
 ### Default Behavior
 
-Returns `429 Too Many Requests` with `Retry-After` header.
+Returns `429 Too Many Requests` with a `Retry-After` header (seconds until the rate limit resets).
 
 ### Custom Handler
 
@@ -350,9 +353,38 @@ target.register('/status', (ammo) => {
 });
 ```
 
+## Custom Storage Backend
+
+Extend the `RateLimitStorage` base class to create your own storage backend:
+
+```javascript
+import RateLimitStorage from 'te.js/rate-limit/storage/base.js';
+
+class PostgresStorage extends RateLimitStorage {
+  async get(key) {
+    // Retrieve rate limit data for key
+    // Return object or null if not found
+  }
+
+  async set(key, value, ttl) {
+    // Store rate limit data with TTL (seconds)
+  }
+
+  async increment(key) {
+    // Increment counter, return new value or null
+  }
+
+  async delete(key) {
+    // Delete rate limit data for key
+  }
+}
+```
+
+The built-in backends (`MemoryStorage` and `RedisStorage`) both extend this base class.
+
 ## Best Practices
 
-1. **Use Redis in production** — Memory store doesn't scale
+1. **Use Redis in production** — Memory store doesn't scale across instances
 2. **Set appropriate limits** — Too strict frustrates users, too lenient invites abuse
 3. **Different limits for different endpoints** — Auth endpoints need stricter limits
 4. **Include headers** — Help clients self-regulate

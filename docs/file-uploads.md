@@ -64,17 +64,18 @@ When a file is uploaded, `ammo.payload[fieldName]` contains:
   filename: 'photo.jpg',          // Original filename
   extension: 'jpg',               // File extension
   path: {
-    absolute: '/var/www/uploads/photo.jpg',
-    relative: 'uploads/photo.jpg'
+    absolute: '/var/www/uploads/photo.jpg',  // Absolute path on disk
+    relative: '\\uploads\\photo.jpg'         // Relative to cwd
   },
   mimetype: 'image/jpeg',         // MIME type
-  size: {                         // File size object
-    value: 245,
-    symbol: 'KB',
-    // ... other filesize properties
+  size: {                         // From the filesize library
+    value: 245,                   // Numeric value
+    symbol: 'KB'                  // Unit (B, KB, MB, etc.)
   }
 }
 ```
+
+The `size` object is produced by the [filesize](https://www.npmjs.com/package/filesize) library. Use `${size.value} ${size.symbol}` for display (e.g. "245 KB").
 
 ## Multiple File Upload
 
@@ -126,7 +127,7 @@ target.register('/profile', upload.file('avatar'), (ammo) => {
 
 ## File Size Limits
 
-When a file exceeds `maxFileSize`, a `413 Payload Too Large` error is thrown:
+When a file exceeds `maxFileSize`, a `413 Payload Too Large` error is thrown automatically. The error message includes the human-readable limit (e.g. "File size exceeds 2 MB"):
 
 ```javascript
 const upload = new TejFileUploader({
@@ -140,6 +141,8 @@ target.register('/upload', upload.file('file'), (ammo) => {
   ammo.fire({ success: true });
 });
 ```
+
+Note that the overall request body is also subject to the global `body.max_size` limit (default 10 MB). See [Configuration](./configuration.md).
 
 ## Client-Side Examples
 

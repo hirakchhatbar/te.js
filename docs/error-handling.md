@@ -355,6 +355,38 @@ While Tejas catches all errors automatically, you may want try-catch for:
 3. **Cleanup operations** — Release resources even on failure
 4. **Partial success** — Continue processing after non-critical failures
 
+## BodyParserError
+
+`BodyParserError` is a subclass of `TejError` thrown automatically during request body parsing. You do not need to handle these yourself — they are caught by the framework and converted to appropriate HTTP responses.
+
+| Status | Condition |
+|--------|-----------|
+| **400** | Malformed JSON, invalid URL-encoded data, or corrupted multipart form data |
+| **408** | Body parsing timed out (exceeds `body.timeout`, default 30 seconds) |
+| **413** | Request body exceeds `body.max_size` (default 10 MB) |
+| **415** | Unsupported content type (not JSON, URL-encoded, or multipart) |
+
+These limits are configured via [Configuration](./configuration.md) (`body.max_size`, `body.timeout`).
+
+Supported content types:
+- `application/json`
+- `application/x-www-form-urlencoded`
+- `multipart/form-data`
+
+## Error Flow
+
+When any error occurs in your handler or middleware, this is what happens internally:
+
+1. The framework's `executeChain()` catches the error
+2. If `LOG_EXCEPTIONS` is enabled, the error is logged
+3. The error is passed to `ammo.throw()`:
+   - **TejError** — uses the error's `code` and `message` directly
+   - **Standard Error** — returns 500 with the error message
+   - **Anything else** — returns 500 with a string representation
+4. `ammo.throw()` calls `ammo.fire(statusCode, message)` to send the HTTP response
+
+Once a response has been sent (`res.headersSent` is true), no further middleware or handlers execute.
+
 ## Error Codes Reference
 
 | Status | Name | When to Use |

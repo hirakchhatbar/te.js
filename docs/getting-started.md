@@ -83,12 +83,15 @@ Tejas uses aviation-inspired naming:
 my-app/
 ├── index.js              # Application entry point
 ├── tejas.config.json     # Optional configuration
-├── targets/              # Route definitions
+├── .env                  # Environment variables
+├── targets/              # Route definitions (auto-discovered)
 │   ├── user.target.js
 │   ├── auth.target.js
 │   └── api/
 │       └── v1.target.js
-└── middlewares/          # Custom middleware
+├── services/             # Business logic
+│   └── user.service.js
+└── middleware/            # Custom middleware
     └── auth.js
 ```
 
@@ -109,11 +112,14 @@ Your application never crashes from unhandled exceptions, and clients always rec
 
 ## Next Steps
 
-- [Configuration](./configuration.md) - Learn about configuration options
-- [Routing](./routing.md) - Deep dive into the routing system
-- [Middleware](./middleware.md) - Add middleware to your application
-- [Database](./database.md) - Connect to MongoDB or Redis
-- [Error Handling](./error-handling.md) - Learn about zero-config error handling
+- [Configuration](./configuration.md) — All configuration options and sources
+- [Routing](./routing.md) — Deep dive into the Target-based routing system
+- [Ammo](./ammo.md) — Master request/response handling
+- [Middleware](./middleware.md) — Global, target, and route-level middleware
+- [Database](./database.md) — Connect to MongoDB or Redis
+- [Error Handling](./error-handling.md) — Zero-config error handling
+- [CLI Reference](./cli.md) — `tejas fly` and doc generation commands
+- [Auto-Documentation](./auto-docs.md) — Generate OpenAPI specs from your code
 
 ## Example Application
 
@@ -136,16 +142,16 @@ app.midair((ammo, next) => {
   next();
 });
 
-// Start with Redis and rate limiting
-app
-  .withRedis({ url: 'redis://localhost:6379' })
-  .withRateLimit({
-    maxRequests: 100,
-    timeWindowSeconds: 60,
-    algorithm: 'sliding-window',
-    store: 'redis'
-  })
-  .takeoff();
+// Rate limiting (in-memory)
+app.withRateLimit({
+  maxRequests: 100,
+  timeWindowSeconds: 60
+});
+
+// Start with optional Redis
+app.takeoff({
+  withRedis: { url: 'redis://localhost:6379' }
+});
 ```
 
 ```javascript

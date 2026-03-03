@@ -188,6 +188,42 @@ users.register('/:id', (ammo) => {
 });
 ```
 
+## Endpoint Metadata
+
+You can optionally pass a metadata object as the second argument to `register()`. This metadata is used by the [auto-documentation](./auto-docs.md) system to generate richer OpenAPI specs:
+
+```javascript
+target.register('/users', {
+  summary: 'User operations',
+  description: 'Create and list users',
+  methods: ['GET', 'POST'],
+  request: {
+    name: { type: 'string', required: true },
+    email: { type: 'string', required: true }
+  },
+  response: {
+    200: { description: 'User list' },
+    201: { description: 'User created' }
+  }
+}, (ammo) => {
+  if (ammo.GET) return ammo.fire(getUsers());
+  if (ammo.POST) return ammo.fire(201, createUser(ammo.payload));
+  ammo.notAllowed();
+});
+```
+
+When metadata is omitted, the auto-docs LLM infers everything from the handler source code.
+
+## Method-Agnostic Handlers
+
+If a handler does not check any method flags (`ammo.GET`, `ammo.POST`, etc.), it is treated as accepting **all HTTP methods**. This is useful for simple endpoints:
+
+```javascript
+target.register('/health', (ammo) => {
+  ammo.fire({ status: 'ok' });
+});
+```
+
 ## Listing All Routes
 
 Get all registered endpoints programmatically:
@@ -195,7 +231,7 @@ Get all registered endpoints programmatically:
 ```javascript
 import { listAllEndpoints } from 'te.js';
 
-// Get flat list
+// Get flat list of paths
 const routes = listAllEndpoints();
 // ['/api/users', '/api/posts', '/auth/login', ...]
 
@@ -257,4 +293,10 @@ products.register('/:id/update', authMiddleware, adminMiddleware, (ammo) => {
   ammo.fire({ message: 'Product updated' });
 });
 ```
+
+## Next Steps
+
+- [Ammo](./ammo.md) — Handle requests and send responses
+- [Middleware](./middleware.md) — Global, target, and route-level middleware
+- [Auto-Documentation](./auto-docs.md) — Endpoint metadata for OpenAPI generation
 

@@ -6,7 +6,7 @@ Complete API documentation for the Tejas framework.
 
 ## Tejas Class
 
-The main application class.
+The main application class. Only one instance exists per process (singleton).
 
 ### Constructor
 
@@ -20,18 +20,21 @@ const app = new Tejas(options);
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `entry` | string | *(auto-resolved)* | Entry file for `tejas fly` |
 | `port` | number | `1403` | Server port |
 | `log.http_requests` | boolean | `false` | Enable request logging |
 | `log.exceptions` | boolean | `false` | Enable error logging |
-| `body.max_size` | number | `10485760` | Max body size (bytes) |
-| `body.timeout` | number | `30000` | Body parsing timeout (ms) |
-| `dir.targets` | string | `"targets"` | Targets directory |
+| `body.max_size` | number | `10485760` (10 MB) | Max body size (bytes) |
+| `body.timeout` | number | `30000` (30 s) | Body parsing timeout (ms) |
+| `dir.targets` | string | `"targets"` | Directory for auto-discovered `.target.js` files |
+
+See [Configuration](./configuration.md) for all options including the `docs` section.
 
 ### Methods
 
 #### midair(...middlewares)
 
-Register global middleware.
+Register global middleware. These run for every incoming request.
 
 ```javascript
 app.midair(middleware1, middleware2);
@@ -39,7 +42,7 @@ app.midair(middleware1, middleware2);
 
 #### withRedis(config)
 
-Initialize Redis connection.
+Initialize a Redis connection. Auto-installs the `redis` package if needed.
 
 ```javascript
 app.withRedis({
@@ -50,29 +53,28 @@ app.withRedis({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `url` | string | - | Redis connection URL |
+| `url` | string | — | Redis connection URL |
 | `isCluster` | boolean | `false` | Use Redis Cluster |
-| `socket.host` | string | - | Redis host |
-| `socket.port` | number | - | Redis port |
+| `socket.host` | string | — | Redis host |
+| `socket.port` | number | — | Redis port |
 | `socket.tls` | boolean | `false` | Use TLS |
+| `password` | string | — | Redis password |
 
 **Returns:** `Promise<Tejas>` (for chaining)
 
 #### withMongo(config)
 
-Initialize MongoDB connection.
+Initialize a MongoDB connection. Auto-installs `mongoose` if needed.
 
 ```javascript
 app.withMongo({
-  uri: 'mongodb://localhost:27017/myapp',
-  options: {}
+  uri: 'mongodb://localhost:27017/myapp'
 });
 ```
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `uri` | string | MongoDB connection URI |
-| `options` | object | MongoDB driver options |
 
 **Returns:** `Tejas` (for chaining)
 
@@ -93,22 +95,44 @@ app.withRateLimit({
 |--------|------|---------|-------------|
 | `maxRequests` | number | `60` | Max requests per window |
 | `timeWindowSeconds` | number | `60` | Time window in seconds |
-| `algorithm` | string | `'sliding-window'` | Rate limiting algorithm |
-| `store` | string | `'memory'` | Storage backend |
-| `keyGenerator` | function | IP-based | Key generation function |
-| `headerFormat.type` | string | `'standard'` | Header format |
-| `onRateLimited` | function | - | Custom rate limit handler |
+| `algorithm` | string | `'sliding-window'` | `'sliding-window'`, `'token-bucket'`, or `'fixed-window'` |
+| `store` | string | `'memory'` | `'memory'` or `'redis'` |
+| `keyGenerator` | function | `(ammo) => ammo.ip` | Generates unique key per client |
+| `keyPrefix` | string | `'rl:'` | Storage key prefix |
+| `headerFormat.type` | string | `'standard'` | `'standard'`, `'legacy'`, or `'both'` |
+| `headerFormat.draft7` | boolean | `false` | Include `RateLimit-Policy` header |
+| `headerFormat.draft8` | boolean | `false` | Use delta-seconds for `RateLimit-Reset` |
+| `onRateLimited` | function | — | Custom handler when rate limited |
+
+**Returns:** `Tejas` (for chaining)
+
+#### serveDocs(config)
+
+Serve an interactive API documentation UI (Scalar) from a pre-generated OpenAPI spec.
+
+```javascript
+app.serveDocs({
+  specPath: './openapi.json',
+  scalarConfig: { layout: 'modern', theme: 'default' }
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `specPath` | string | `'./openapi.json'` | Path to the OpenAPI spec file |
+| `scalarConfig` | object | *(defaults)* | Scalar UI configuration options |
+
+Registers `GET /docs` (HTML UI) and `GET /docs/openapi.json` (spec JSON).
 
 **Returns:** `Tejas` (for chaining)
 
 #### takeoff(options)
 
-Start the HTTP server.
+Start the HTTP server. Optionally initializes database connections.
 
 ```javascript
 app.takeoff();
 
-// With database initialization
 app.takeoff({
   withRedis: { url: 'redis://localhost:6379' },
   withMongo: { uri: 'mongodb://localhost:27017/db' }
@@ -119,7 +143,7 @@ app.takeoff({
 
 ## Target Class
 
-Route grouping class.
+Route grouping class (equivalent to Express `Router`).
 
 ### Constructor
 
@@ -131,41 +155,50 @@ const target = new Target(basePath);
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `basePath` | string | `''` | Base path for all routes |
+| `basePath` | string | `''` | Base path for all routes in this target |
 
 ### Methods
 
 #### midair(...middlewares)
 
-Add target-level middleware.
+Add target-level middleware that runs for all routes in this target.
 
 ```javascript
 target.midair(authMiddleware, loggingMiddleware);
 ```
 
-#### register(path, ...middlewaresAndHandler)
+#### register(path, [metadata], ...middlewares, handler)
 
 Register an endpoint.
 
 ```javascript
-// Without middleware
+// Basic
 target.register('/path', handler);
 
 // With middleware
 target.register('/path', middleware1, middleware2, handler);
+
+// With metadata (for auto-docs)
+target.register('/path', {
+  summary: 'Description',
+  methods: ['GET', 'POST'],
+  request: { name: { type: 'string', required: true } },
+  response: { 200: { description: 'Success' } }
+}, middleware1, handler);
 ```
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | string | Route path (supports `:param`) |
-| `middlewares` | function[] | Optional middleware |
-| `handler` | function | Route handler `(ammo) => {}` |
+| `path` | string | Route path (supports `:param` for parameters) |
+| `metadata` | object | *(optional)* Metadata for OpenAPI generation |
+| `middlewares` | function[] | *(optional)* Route-specific middleware |
+| `handler` | function | Route handler `(ammo) => {}` (always the last argument) |
 
 ---
 
 ## Ammo Class
 
-Request/response wrapper.
+Request/response wrapper created for each incoming request.
 
 ### Properties
 
@@ -173,28 +206,28 @@ Request/response wrapper.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `GET` | boolean | Is GET request |
-| `POST` | boolean | Is POST request |
-| `PUT` | boolean | Is PUT request |
-| `DELETE` | boolean | Is DELETE request |
-| `PATCH` | boolean | Is PATCH request |
-| `HEAD` | boolean | Is HEAD request |
-| `OPTIONS` | boolean | Is OPTIONS request |
+| `GET` | boolean | `true` if GET request |
+| `POST` | boolean | `true` if POST request |
+| `PUT` | boolean | `true` if PUT request |
+| `DELETE` | boolean | `true` if DELETE request |
+| `PATCH` | boolean | `true` if PATCH request |
+| `HEAD` | boolean | `true` if HEAD request |
+| `OPTIONS` | boolean | `true` if OPTIONS request |
 
 #### Request Data
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `method` | string | HTTP method string |
-| `payload` | object | Body + query params + route params |
-| `headers` | object | Request headers |
+| `method` | string | HTTP method string (e.g. `'GET'`) |
+| `payload` | object | Merged: query params + body + route params (route params have highest priority) |
+| `headers` | object | Request headers (lowercase keys) |
 | `ip` | string | Client IP address |
 
 #### URL Data
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `path` | string | Full URL path |
+| `path` | string | Full URL path with query string |
 | `endpoint` | string | Path without query string |
 | `protocol` | string | `'http'` or `'https'` |
 | `hostname` | string | Request hostname |
@@ -204,76 +237,77 @@ Request/response wrapper.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `req` | IncomingMessage | Node.js request |
-| `res` | ServerResponse | Node.js response |
+| `req` | IncomingMessage | Node.js request object |
+| `res` | ServerResponse | Node.js response object |
+
+#### Response Data
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `dispatchedData` | any | The data sent via the most recent `fire()` call. `undefined` until `fire()` is called |
 
 ### Methods
 
-#### fire(data) / fire(status, data) / fire(status, data, contentType)
+#### fire()
 
-Send response.
+Send a response to the client.
 
-```javascript
-ammo.fire({ data: 'value' });        // 200 with JSON
-ammo.fire(201, { created: true });   // Custom status
-ammo.fire(200, html, 'text/html');   // Custom content type
-```
+| Signature | Status | Body | Content-Type |
+|-----------|--------|------|-------------|
+| `fire()` | 204 | *(empty)* | — |
+| `fire("text")` | 200 | text | `text/plain` |
+| `fire({ json })` | 200 | JSON string | `application/json` |
+| `fire(201)` | 201 | status message | `text/plain` |
+| `fire(201, data)` | 201 | data | auto-detected |
+| `fire(200, html, "text/html")` | 200 | html | `text/html` |
 
-#### throw(error) / throw(status, message)
+#### throw()
 
-Send error response.
+Send an error response.
 
-```javascript
-ammo.throw(404);                     // 404 with default message
-ammo.throw(404, 'Not found');        // 404 with message
-ammo.throw(new Error('Failed'));     // 500 with error message
-```
+| Signature | Behavior |
+|-----------|----------|
+| `throw()` | 500 "Internal Server Error" |
+| `throw(404)` | 404 with default status message |
+| `throw(404, "msg")` | 404 with custom message |
+| `throw(new TejError(code, msg))` | Uses TejError's code and message |
+| `throw(new Error("msg"))` | 500 with error message |
 
 #### redirect(url, statusCode)
 
 HTTP redirect.
 
 ```javascript
-ammo.redirect('/new-path');          // 302 redirect
-ammo.redirect('/new-path', 301);     // 301 permanent
+ammo.redirect('/new-path');        // 302 temporary
+ammo.redirect('/new-path', 301);   // 301 permanent
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `url` | string | - | Redirect URL |
-| `statusCode` | number | `302` | HTTP status |
+| `url` | string | — | Redirect URL |
+| `statusCode` | number | `302` | HTTP status code |
 
 #### notFound()
 
-Throw 404 error.
-
-```javascript
-ammo.notFound();
-```
+Throws 404 Not Found.
 
 #### notAllowed()
 
-Throw 405 error.
-
-```javascript
-ammo.notAllowed();
-```
+Throws 405 Method Not Allowed.
 
 #### unauthorized()
 
-Throw 401 error.
+Throws 401 Unauthorized.
 
-```javascript
-ammo.unauthorized();
-```
+#### defaultEntry()
+
+Sends the default Tejas HTML entry page. Used internally for the root `/` route when no target matches.
 
 ---
 
 ## TejError Class
 
 Custom error class for HTTP errors.
-
-### Constructor
 
 ```javascript
 import { TejError } from 'te.js';
@@ -286,19 +320,28 @@ throw new TejError(statusCode, message);
 | `statusCode` | number | HTTP status code |
 | `message` | string | Error message |
 
-### Properties
-
 | Property | Type | Description |
 |----------|------|-------------|
 | `code` | number | HTTP status code |
 | `message` | string | Error message |
 | `name` | string | `'TejError'` |
 
+### BodyParserError
+
+A subclass of `TejError` thrown during request body parsing:
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Malformed JSON, invalid URL-encoded data, or corrupted multipart data |
+| 408 | Body parsing timed out |
+| 413 | Request body exceeds `body.max_size` |
+| 415 | Unsupported content type |
+
 ---
 
 ## TejFileUploader Class
 
-File upload handler.
+File upload handler as middleware.
 
 ### Constructor
 
@@ -310,31 +353,27 @@ const upload = new TejFileUploader(options);
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `destination` | string | Upload directory |
-| `name` | string | Custom filename |
-| `maxFileSize` | number | Max file size (bytes) |
+| `destination` | string | Directory to save uploaded files |
+| `name` | string | Optional custom filename |
+| `maxFileSize` | number | Max file size in bytes (throws 413 if exceeded) |
 
 ### Methods
 
 #### file(...fieldNames)
 
-Single file upload middleware.
+Returns middleware for single file upload per field.
 
 ```javascript
 target.register('/upload', upload.file('avatar'), handler);
 ```
 
-**Returns:** Middleware function
-
 #### files(...fieldNames)
 
-Multiple files upload middleware.
+Returns middleware for multiple files per field, grouped by field name.
 
 ```javascript
 target.register('/upload', upload.files('photos', 'documents'), handler);
 ```
-
-**Returns:** Middleware function
 
 ### Uploaded File Object
 
@@ -343,13 +382,13 @@ target.register('/upload', upload.files('photos', 'documents'), handler);
   filename: string,      // Original filename
   extension: string,     // File extension
   path: {
-    absolute: string,    // Absolute path
-    relative: string     // Relative path
+    absolute: string,    // Absolute path on disk
+    relative: string     // Relative to cwd
   },
   mimetype: string,      // MIME type
   size: {
-    value: number,       // Size value
-    symbol: string       // Size unit (KB, MB, etc.)
+    value: number,       // Numeric size value
+    symbol: string       // Unit: 'B', 'KB', 'MB', etc.
   }
 }
 ```
@@ -373,13 +412,13 @@ const grouped = listAllEndpoints(true);  // { users: [...], api: [...] }
 |-----------|------|---------|-------------|
 | `grouped` | boolean | `false` | Group by first path segment |
 
-**Returns:** `string[]` or `object`
-
 ---
 
 ## Middleware Signatures
 
-### Tejas Style
+Tejas detects the middleware style by argument count:
+
+### Tejas Style (2 arguments)
 
 ```javascript
 const middleware = (ammo, next) => {
@@ -388,7 +427,7 @@ const middleware = (ammo, next) => {
 };
 ```
 
-### Express Style
+### Express Style (3 arguments)
 
 ```javascript
 const middleware = (req, res, next) => {
@@ -404,10 +443,7 @@ const middleware = (req, res, next) => {
 ```javascript
 import { env, setEnv } from 'tej-env';
 
-// Get configuration value
 const port = env('PORT');
-
-// Set configuration value
 setEnv('CUSTOM_VAR', 'value');
 ```
 
@@ -423,7 +459,7 @@ const redis = dbManager.getConnection('redis');
 const mongo = dbManager.getConnection('mongodb');
 
 // Check connection status
-const status = dbManager.hasConnection('redis');
+const status = dbManager.hasConnection('redis', {});
 // { exists: boolean, initializing: boolean }
 
 // Close connections
@@ -432,5 +468,22 @@ await dbManager.closeAllConnections();
 
 // Get all active connections
 const connections = dbManager.getActiveConnections();
+// Returns: Map
 ```
 
+---
+
+## RateLimitStorage Base Class
+
+Abstract base class for custom rate limit storage backends:
+
+```javascript
+import RateLimitStorage from 'te.js/rate-limit/storage/base.js';
+
+class CustomStorage extends RateLimitStorage {
+  async get(key) { }       // Return object or null
+  async set(key, value, ttl) { }  // Store with TTL (seconds)
+  async increment(key) { }  // Return new value or null
+  async delete(key) { }     // Remove key
+}
+```

@@ -1,40 +1,36 @@
 # Tejas Documentation
 
-Welcome to the Tejas framework documentation. Use the navigation below to explore different aspects of the framework.
+Welcome to the documentation for **Tejas** — a Node.js framework for building powerful backend services.
 
 ## Table of Contents
 
 ### Getting Started
-- [Introduction](./getting-started.md) - Overview and quick start guide
-- [Configuration](./configuration.md) - Configuration options and sources
+
+- [Introduction & Quick Start](./getting-started.md) — Install, create your first app, and core concepts
+- [Configuration](./configuration.md) — Config sources, all available options, and environment variables
 
 ### Core Concepts
-- [Routing (Targets)](./routing.md) - Define routes and endpoints
-- [Request & Response (Ammo)](./ammo.md) - Handle requests and send responses
-- [Middleware](./middleware.md) - Global and route-specific middleware
+
+- [Routing (Targets)](./routing.md) — Define routes, parameterized paths, and endpoint metadata
+- [Request & Response (Ammo)](./ammo.md) — Handle requests, send responses, and access request data
+- [Middleware](./middleware.md) — Global, target, and route-level middleware with Express compatibility
+- [Error Handling](./error-handling.md) — Zero-config error handling, TejError, and BodyParserError
 
 ### Features
-- [Database Integration](./database.md) - MongoDB and Redis connections
-- [Rate Limiting](./rate-limiting.md) - Protect your API from abuse
-- [File Uploads](./file-uploads.md) - Handle file uploads
-- [Error Handling](./error-handling.md) - **Zero-config error handling** — no try-catch needed!
+
+- [Database Integration](./database.md) — Redis and MongoDB connections with auto-install
+- [Rate Limiting](./rate-limiting.md) — Three algorithms, two storage backends, custom headers
+- [File Uploads](./file-uploads.md) — Single and multiple file handling with validation
+
+### Tooling
+
+- [CLI Reference](./cli.md) — `tejas fly`, `tejas generate:docs`, and `tejas docs:on-push`
+- [Auto-Documentation](./auto-docs.md) — LLM-powered OpenAPI generation and Scalar API docs UI
 
 ### Reference
-- [API Reference](./api-reference.md) - Complete API documentation
+
+- [API Reference](./api-reference.md) — Complete API documentation for all classes and functions
 
 ---
 
-## Quick Links
-
-| Topic | Description |
-|-------|-------------|
-| [Getting Started](./getting-started.md) | Set up your first Tejas application |
-| [Routing](./routing.md) | Learn about the Target-based routing system |
-| [Ammo](./ammo.md) | Master request/response handling |
-| [Error Handling](./error-handling.md) | Zero-config error handling — no try-catch needed! |
-| [Rate Limiting](./rate-limiting.md) | Configure API protection |
-
-## Version
-
-This documentation is for Tejas v1.3.x
-
+This documentation is for Tejas v2.0.0.

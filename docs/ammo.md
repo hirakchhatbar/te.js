@@ -71,13 +71,19 @@ target.register('/resource', (ammo) => {
 | `ammo.req` | IncomingMessage | Node.js request object |
 | `ammo.res` | ServerResponse | Node.js response object |
 
+### Response Data
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ammo.dispatchedData` | any | The data sent via the most recent `fire()` call. `undefined` until `fire()` is called |
+
 ## The Payload Object
 
-`ammo.payload` is a merged object containing:
+`ammo.payload` is a merged object containing data from three sources, applied in this order (later sources override earlier ones for the same key):
 
 1. **Query parameters** — From the URL query string
-2. **Request body** — Parsed JSON, form data, or multipart data
-3. **Route parameters** — From parameterized routes (`:id`)
+2. **Request body** — Parsed JSON, URL-encoded form data, or multipart form data
+3. **Route parameters** — From parameterized routes (`:id`) — highest priority
 
 ```javascript
 // Request: POST /users/123?notify=true
@@ -117,15 +123,18 @@ ammo.fire('Hello, World!');
 ammo.fire(200, '<h1>Hello</h1>', 'text/html');
 ```
 
-**Signatures:**
+**All signatures:**
 
-```javascript
-ammo.fire()                      // 204 No Content
-ammo.fire(data)                  // 200 with data
-ammo.fire(statusCode)            // Status with default message
-ammo.fire(statusCode, data)      // Status with data
-ammo.fire(statusCode, data, contentType)  // Full control
-```
+| Call | Status | Body | Content-Type |
+|------|--------|------|-------------|
+| `fire()` | 204 | *(empty)* | — |
+| `fire("text")` | 200 | `text` | `text/plain` |
+| `fire({ json })` | 200 | JSON string | `application/json` |
+| `fire(201)` | 201 | status message | `text/plain` |
+| `fire(201, data)` | 201 | `data` | auto-detected |
+| `fire(200, html, "text/html")` | 200 | `html` | `text/html` |
+
+After `fire()` is called, the sent data is available as `ammo.dispatchedData`.
 
 ### throw() — Send Error Response
 
@@ -146,6 +155,16 @@ ammo.throw(new Error('Something went wrong'));
 import { TejError } from 'te.js';
 throw new TejError(400, 'Invalid input');
 ```
+
+**All `throw()` signatures:**
+
+| Call | Status | Message |
+|------|--------|---------|
+| `throw()` | 500 | `"Internal Server Error"` |
+| `throw(404)` | 404 | Default message for that status code |
+| `throw(404, "msg")` | 404 | `"msg"` |
+| `throw(new TejError(code, msg))` | `code` | `msg` |
+| `throw(new Error("msg"))` | 500 | `"msg"` (or parses numeric messages as status codes) |
 
 > **Note:** You don't need try-catch blocks in your handlers! Tejas automatically catches all errors and converts them to appropriate HTTP responses. Use `throw()` or `TejError` only for intentional, expected error conditions. See [Error Handling](./error-handling.md) for details.
 

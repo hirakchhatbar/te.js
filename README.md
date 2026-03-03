@@ -44,17 +44,18 @@ app.takeoff();
 
 - **Simple Routing** — Clean, method-agnostic URL structures with parameterized routes
 - **Express Compatible** — Use existing Express middleware alongside Tejas middleware
-- **Built-in Rate Limiting** — Three algorithms (Token Bucket, Sliding Window, Fixed Window)
-- **Database Ready** — First-class support for MongoDB and Redis
-- **File Uploads** — Easy file handling with size limits and type validation
 - **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
+- **Built-in Rate Limiting** — Three algorithms (Token Bucket, Sliding Window, Fixed Window) with memory or Redis storage
+- **Database Ready** — First-class Redis and MongoDB support with auto-install of drivers
+- **File Uploads** — Easy file handling with size limits and type validation
+- **Auto-Documentation** — Generate OpenAPI specs from your code with LLM-powered analysis (`tejas generate:docs`)
+- **Interactive API Docs** — Serve a Scalar API reference UI with `app.serveDocs()`
+- **Auto-Discovery** — Automatic route registration from `.target.js` files
 - **Request Logging** — Built-in HTTP request and exception logging
-- **Auto-Discovery** — Automatic route registration from target files
-- **Auto-Documentation** — Generate OpenAPI specs with `tejas generate:docs`; optionally trigger doc generation when pushing to your production branch (`tejas docs:on-push`)
 
 ## Quick Start
 
-### Installation
+### Install
 
 ```bash
 npm install te.js
@@ -113,248 +114,44 @@ node index.js
 | `midair()`  | Register middleware      | `use()`            |
 | `takeoff()` | Start server             | `listen()`         |
 
-## Configuration
-
-Tejas supports multiple configuration sources (in order of priority):
-
-1. **Constructor options** (highest)
-2. **Environment variables**
-3. **tejas.config.json** (lowest)
-
-```javascript
-// Using constructor options
-const app = new Tejas({
-  port: 3000,
-  log: {
-    http_requests: true,
-    exceptions: true,
-  },
-});
-```
-
-```json
-// tejas.config.json
-{
-  "port": 3000,
-  "dir": {
-    "targets": "targets"
-  },
-  "log": {
-    "http_requests": true
-  }
-}
-```
-
-## Database Integration
-
-### Redis
-
-```javascript
-const app = new Tejas();
-
-app.withRedis({ url: 'redis://localhost:6379' }).takeoff();
-```
-
-### MongoDB
-
-```javascript
-app.takeoff({
-  withMongo: { uri: 'mongodb://localhost:27017/myapp' },
-});
-```
-
-## Rate Limiting
-
-Protect your API with built-in rate limiting:
-
-```javascript
-app
-  .withRedis({ url: 'redis://localhost:6379' })
-  .withRateLimit({
-    maxRequests: 100,
-    timeWindowSeconds: 60,
-    algorithm: 'sliding-window', // or 'token-bucket', 'fixed-window'
-    store: 'redis', // or 'memory'
-  })
-  .takeoff();
-```
-
-## File Uploads
-
-```javascript
-import { Target, TejFileUploader } from 'te.js';
-
-const upload = new TejFileUploader({
-  destination: 'uploads/',
-  maxFileSize: 5 * 1024 * 1024, // 5MB
-});
-
-const target = new Target('/files');
-
-target.register('/upload', upload.file('avatar'), (ammo) => {
-  ammo.fire({ file: ammo.payload.avatar });
-});
-```
-
-## Middleware
-
-### Global Middleware
-
-```javascript
-app.midair((ammo, next) => {
-  console.log(`${ammo.method} ${ammo.path}`);
-  next();
-});
-```
-
-### Target Middleware
-
-```javascript
-const api = new Target('/api');
-
-api.midair(authMiddleware);
-
-api.register('/protected', (ammo) => {
-  ammo.fire({ secret: 'data' });
-});
-```
-
-### Route Middleware
-
-```javascript
-api.register('/admin', adminOnly, (ammo) => {
-  ammo.fire({ admin: true });
-});
-```
-
-### Express Compatibility
-
-```javascript
-// Express-style middleware works too!
-app.midair((req, res, next) => {
-  req.customData = 'hello';
-  next();
-});
-```
-
-## Error Handling
-
-**Tejas catches all errors automatically** — you don't need try-catch blocks in your handlers:
-
-```javascript
-// ✅ No try-catch needed — Tejas handles errors automatically
-target.register('/users/:id', async (ammo) => {
-  const user = await database.findUser(ammo.payload.id); // If this throws, Tejas catches it
-  const posts = await database.getUserPosts(user.id); // Same here
-  ammo.fire({ user, posts });
-});
-```
-
-For intentional errors, use `TejError`:
-
-```javascript
-import { TejError } from 'te.js';
-
-target.register('/resource/:id', async (ammo) => {
-  const resource = await findResource(ammo.payload.id);
-
-  if (!resource) {
-    throw new TejError(404, 'Resource not found');
-  }
-
-  ammo.fire(resource);
-});
-```
-
-Enable exception logging to see caught errors:
-
-```javascript
-const app = new Tejas({
-  log: { exceptions: true },
-});
-```
-
-## Project Structure
-
-```
-my-app/
-├── index.js
-├── tejas.config.json
-├── targets/
-│   ├── user.target.js
-│   ├── auth.target.js
-│   └── api/
-│       └── products.target.js
-└── middlewares/
-    ├── auth.js
-    └── logging.js
-```
-
-## API Reference
-
-### Tejas Class
-
-```javascript
-const app = new Tejas(options);
-
-app.midair(middleware); // Add global middleware
-app.withRedis(config); // Initialize Redis connection
-app.withMongo(config); // Initialize MongoDB connection
-app.withRateLimit(config); // Enable rate limiting
-app.takeoff(options); // Start the server
-```
-
-### Target Class
-
-```javascript
-const target = new Target('/base');
-
-target.midair(middleware); // Add target-level middleware
-target.register(path, ...handlers); // Register an endpoint
-```
-
-### Ammo Object
-
-```javascript
-// Properties
-ammo.GET, ammo.POST, ammo.PUT, ammo.DELETE; // HTTP method flags
-ammo.payload; // Request body + query params + route params
-ammo.headers; // Request headers
-ammo.ip; // Client IP address
-ammo.path; // Request path
-ammo.method; // HTTP method string
-
-// Methods
-ammo.fire(data); // Send 200 response
-ammo.fire(status, data); // Send response with status
-ammo.throw(error); // Send error response
-ammo.redirect(url); // Redirect
-ammo.notFound(); // 404 response
-ammo.notAllowed(); // 405 response
-ammo.unauthorized(); // 401 response
-```
-
-## OpenAPI & doc generation
-
-Generate and serve OpenAPI docs from your targets:
+## CLI
 
 ```bash
-npx tejas generate:docs          # interactive
-npx tejas generate:docs --ci    # non-interactive (config + env)
+tejas fly [file]             # Start the server
+tejas generate:docs [--ci]   # Generate OpenAPI docs (interactive or CI mode)
+tejas docs:on-push           # Auto-generate docs when pushing to production branch
 ```
 
-Use a pre-push hook to regenerate docs when pushing to your production branch (e.g. `main`). Add to `.husky/pre-push`: `npx tejas docs:on-push`. Configure the branch and options in `tejas.config.json` under `"docs"` (e.g. `productionBranch`, `output`, `dirTargets`), and set `LLM_API_KEY` (or `OPENAI_API_KEY`) for CI mode.
+## API Documentation
+
+Generate and serve interactive API docs:
+
+```bash
+npx tejas generate:docs
+```
+
+```javascript
+app.serveDocs({ specPath: './openapi.json' });
+app.takeoff();
+// Visit http://localhost:1403/docs
+```
 
 ## Documentation
 
 For comprehensive documentation, see the [docs folder](./docs) or visit [tejas-documentation.vercel.app](https://tejas-documentation.vercel.app).
 
-- [Getting Started](./docs/getting-started.md)
-- [Configuration](./docs/configuration.md)
-- [Routing](./docs/routing.md)
-- [Middleware](./docs/middleware.md)
-- [Database](./docs/database.md)
-- [Rate Limiting](./docs/rate-limiting.md)
+- [Getting Started](./docs/getting-started.md) — Installation and quick start
+- [Configuration](./docs/configuration.md) — All configuration options
+- [Routing](./docs/routing.md) — Target-based routing system
+- [Ammo](./docs/ammo.md) — Request/response handling
+- [Middleware](./docs/middleware.md) — Global, target, and route middleware
+- [Error Handling](./docs/error-handling.md) — Zero-config error handling
+- [Database](./docs/database.md) — Redis and MongoDB integration
+- [Rate Limiting](./docs/rate-limiting.md) — API protection
+- [File Uploads](./docs/file-uploads.md) — File handling
+- [CLI Reference](./docs/cli.md) — Command-line interface
+- [Auto-Documentation](./docs/auto-docs.md) — OpenAPI generation
+- [API Reference](./docs/api-reference.md) — Complete API docs
 
 ## Contributing
 

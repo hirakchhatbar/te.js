@@ -11,9 +11,9 @@ import Tejas from 'te.js';
 
 const app = new Tejas();
 
-app
-  .withRedis({ url: 'redis://localhost:6379' })
-  .takeoff();
+app.takeoff({
+  withRedis: { url: 'redis://localhost:6379' }
+});
 ```
 
 ### MongoDB
@@ -27,11 +27,13 @@ app.takeoff({
 ### Both Together
 
 ```javascript
-app
-  .withRedis({ url: 'redis://localhost:6379' })
-  .withMongo({ uri: 'mongodb://localhost:27017/myapp' })
-  .takeoff();
+app.takeoff({
+  withRedis: { url: 'redis://localhost:6379' },
+  withMongo: { uri: 'mongodb://localhost:27017/myapp' }
+});
 ```
+
+> **Auto-install:** Tejas automatically installs the `redis` or `mongoose` npm packages on first use if they are not already in your `node_modules`. No manual `npm install` is required for database drivers.
 
 ## Redis Configuration
 
@@ -237,24 +239,36 @@ users.register('/:id', async (ammo) => {
 
 ## Database Manager API
 
+Access the database manager directly for advanced usage:
+
+```javascript
+import dbManager from 'te.js/database/index.js';
+```
+
 ### Check Connection Status
 
 ```javascript
-const status = dbManager.hasConnection('redis');
-// { exists: true, initializing: false }
+const status = dbManager.hasConnection('redis', {});
+// Returns: { exists: boolean, initializing: boolean }
+
+if (status.exists) {
+  const redis = dbManager.getConnection('redis');
+}
 ```
+
+The `initializing` flag is `true` while the connection is being established.
 
 ### Get All Active Connections
 
 ```javascript
 const connections = dbManager.getActiveConnections();
-// Map { 'redis' => {...}, 'mongodb' => {...} }
+// Returns a Map: { 'redis' => { type, client, config }, 'mongodb' => { type, client, config } }
 ```
 
 ### Close Connections
 
 ```javascript
-// Close specific connection
+// Close a specific connection
 await dbManager.closeConnection('redis');
 
 // Close all connections
