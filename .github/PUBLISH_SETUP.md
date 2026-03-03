@@ -54,6 +54,9 @@ Create these labels in the repo (**Issues → Labels**, or **Labels** in the rep
 
 If `master` is protected and requires status checks, either allow the **Publish to npm** workflow to push, or use a PAT with `contents: write` for the checkout/push steps (see plan).
 
----
+## Troubleshooting
 
-With **OIDC** configured on npm, you only need to create the three labels; then merging a labeled PR will run tests, bump the version, push the bump and tag, publish to npm, and create a GitHub release.
+- **404 Not Found / Access token expired or revoked** when publishing:
+  - If using OIDC: ensure the **workflow filename** in npm Trusted publishing is exactly `publish.yml` and the repo URL matches. OIDC only works on GitHub-hosted runners.
+  - If the package has never been published: the first publish may need to be done once from your machine (`npm login` then `npm publish`) to create the package on npm; after that, CI can publish new versions.
+  - If the package name is taken by another user: use a scoped name (e.g. `@yourusername/te.js`) in `package.json` and publish that instead.
