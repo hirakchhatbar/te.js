@@ -47,7 +47,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.version-label.outputs.bump != ''
-        run: npm ci
+        run: npm install
 
       - name: Run tests
         if: steps.version-label.outputs.bump != ''
