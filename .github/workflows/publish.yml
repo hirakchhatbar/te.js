@@ -1,0 +1,93 @@
+# Auto npm publish when a PR is merged to master with a version label (patch/minor/major)
+
+name: Publish to npm
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    permissions:
+      contents: write
+      id-token: write   # Required for npm OIDC trusted publishing
+    steps:
+      - name: Check version label
+        id: version-label
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS" | grep -qE '"(patch|minor|major)"'; then
+            if echo "$LABELS" | grep -q '"major"'; then
+              echo "bump=major" >> $GITHUB_OUTPUT
+            elif echo "$LABELS" | grep -q '"minor"'; then
+              echo "bump=minor" >> $GITHUB_OUTPUT
+            else
+              echo "bump=patch" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "bump=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.version-label.outputs.bump != ''
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        if: steps.version-label.outputs.bump != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'   # npm OIDC requires Node 22.14+
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        if: steps.version-label.outputs.bump != ''
+        run: npm ci
+
+      - name: Run tests
+        if: steps.version-label.outputs.bump != ''
+        run: npm run test:run
+
+      - name: Bump version
+        if: steps.version-label.outputs.bump != ''
+        run: npm version ${{ steps.version-label.outputs.bump }} --no-git-tag-version
+
+      - name: Get new version
+        if: steps.version-label.outputs.bump != ''
+        id: new-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Commit and push version bump
+        if: steps.version-label.outputs.bump != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git diff --staged --quiet || git commit -m "chore: Bump version to ${{ steps.new-version.outputs.version }} [skip ci]"
+          git push origin master
+
+      - name: Create and push tag
+        if: steps.version-label.outputs.bump != ''
+        run: |
+          git tag "v${{ steps.new-version.outputs.version }}"
+          git push origin "v${{ steps.new-version.outputs.version }}"
+
+      - name: Publish to npm
+        if: steps.version-label.outputs.bump != ''
+        run: npm publish
+        # Uses OIDC (no NPM_TOKEN) when trusted publisher is configured on npm
+
+      - name: Create GitHub Release
+        if: steps.version-label.outputs.bump != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.new-version.outputs.version }}
+          name: v${{ steps.new-version.outputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
