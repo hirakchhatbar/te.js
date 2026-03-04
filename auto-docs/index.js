@@ -7,13 +7,13 @@
  * - openapi/level3.js — level-3 pipeline: reorder tags by importance, generate and write overview page
  * - analysis/handler-analyzer.js — detect HTTP methods from handler source
  * - analysis/source-resolver.js — resolve target file and dependencies (for level 2 context)
- * - llm/ — LLM provider (enhanceEndpointDocs, summarizeTargetGroup, reorderTagsByImportance, generateOverviewPage)
+ * - docs-llm/ — Docs-specific LLM provider (enhanceEndpointDocs, summarizeTargetGroup, reorderTagsByImportance, generateOverviewPage)
  * - ui/docs-ui.js — build Scalar docs HTML, registerDocRoutes
  */
 
 import { writeFile } from 'node:fs/promises';
 import TejLogger from 'tej-logger';
-import { createProvider } from './llm/index.js';
+import { createProvider } from './docs-llm/index.js';
 import { generateOpenAPISpec } from './openapi/generator.js';
 import { runLevel3 } from './openapi/level3.js';
 import targetRegistry from '../server/targets/registry.js';
@@ -141,6 +141,6 @@ export async function generateDocs(registry = targetRegistry, options = {}) {
 }
 
 export { generateOpenAPISpec } from './openapi/generator.js';
-export { createProvider } from './llm/index.js';
+export { createProvider } from './docs-llm/index.js';
 export { buildDocsPage } from './ui/docs-ui.js';
 export { analyzeHandler, detectMethods } from './analysis/handler-analyzer.js';

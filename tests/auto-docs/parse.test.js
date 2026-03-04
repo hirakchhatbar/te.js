@@ -6,7 +6,7 @@ import {
   extractJSON,
   extractJSONArray,
   reconcileOrderedTags,
-} from '../../auto-docs/llm/parse.js';
+} from '../../lib/llm/index.js';
 
 describe('llm/parse', () => {
   describe('extractJSON', () => {

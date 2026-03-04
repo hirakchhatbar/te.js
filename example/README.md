@@ -47,6 +47,16 @@ example/
 | POST   | `/users/:id/updateProfileImage` | Single file (field: image)        |
 | POST   | `/users/:id/uploadDocuments`    | Multiple files (field: documents) |
 
+### Errors (LLM-inferred when `errors.llm.enabled`)
+
+| Method | Path             | Description                                                |
+| ------ | ---------------- | ---------------------------------------------------------- |
+| GET    | `/errors/throw`  | Explicit `ammo.throw()` with no args — LLM infers from code context |
+| GET    | `/errors/crash`  | Throws an error — framework catches and uses same `ammo.throw(err)` |
+| GET    | `/errors/explicit` | Explicit `ammo.throw(400, 'Bad request')` — LLM not used |
+
+Requires `errors.llm.enabled` and `LLM_*` (or `ERRORS_LLM_*`) env vars: baseURL, apiKey, model.
+
 ### Cache (requires Redis)
 
 | Method | Path          | Description                        |
@@ -75,6 +85,11 @@ curl -X POST http://localhost:1403/users/1/updateProfileImage -F "image=@./photo
 
 # File upload (multiple)
 curl -X POST http://localhost:1403/users/1/uploadDocuments -F "documents=@./doc1.pdf" -F "documents=@./doc2.pdf"
+
+# LLM error handling (requires errors.llm.enabled + LLM_* or ERRORS_LLM_* in .env)
+curl http://localhost:1403/errors/throw
+curl http://localhost:1403/errors/crash
+curl http://localhost:1403/errors/explicit
 
 # Cache (requires REDIS_URL)
 REDIS_URL=redis://localhost:6379 npm start
@@ -105,7 +120,7 @@ $env:REDIS_URL="redis://localhost:6379"; npm start
 - **Routing** — Flat targets, parameterized paths (`:id`)
 - **HTTP methods** — `ammo.GET`, `ammo.POST`, `ammo.notAllowed()`
 - **Body parsing** — JSON, multipart/form-data
-- **Error handling** — `TejError`, `ammo.notFound()`, `ammo.throw()`
+- **Error handling** — `TejError`, `ammo.notFound()`, `ammo.throw()`; optional **LLM-inferred errors** (`errors.llm.enabled`) — one mechanism for explicit and framework-caught errors (see `/errors/*`)
 - **File uploads** — `TejFileUploader.file()`, `TejFileUploader.files()`
 - **Middleware** — Global (`app.midair`), target-level (`target.midair`)
 - **Rate limiting** — Memory store (60 req/min)

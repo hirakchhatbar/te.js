@@ -41,12 +41,13 @@ api.register('/hello/:name', (ammo) => {
 app.takeoff();
 ```
 
+
 ## Features
 
 - **AI-Native (MCP)** — Ship with an MCP server so AI assistants can scaffold projects, generate routes, and write correct code with full framework knowledge
 - **Simple Routing** — Clean, method-agnostic URL structures with parameterized routes
 - **Express Compatible** — Use existing Express middleware alongside Tejas middleware
-- **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
+- **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically. Opt in to have an LLM determine error code and message when you don't specify them (see [Error Handling](./docs/error-handling.md))
 - **Built-in Rate Limiting** — Three algorithms (Token Bucket, Sliding Window, Fixed Window) with memory or Redis storage
 - **Database Ready** — First-class Redis and MongoDB support with auto-install of drivers
 - **File Uploads** — Easy file handling with size limits and type validation
@@ -54,6 +55,7 @@ app.takeoff();
 - **Interactive API Docs** — Serve a Scalar API reference UI with `app.serveDocs()`
 - **Auto-Discovery** — Automatic route registration from `.target.js` files
 - **Request Logging** — Built-in HTTP request and exception logging
+
 
 ## AI-Assisted Setup (MCP)
 
@@ -77,6 +79,7 @@ The [Tejas MCP server](https://www.npmjs.com/package/tejas-mcp) gives your IDE's
 **Other MCP-compatible IDEs** — run `npx tejas-mcp` as the server command (stdio transport, no config needed).
 
 Once connected, prompt your AI with things like *"Scaffold a new te.js project called my-api"* or *"Create a REST API with user CRUD routes"* — the assistant will generate framework-correct code using real te.js patterns.
+
 
 ## Quick Start
 
@@ -128,6 +131,7 @@ node index.js
 # Server running at http://localhost:3000
 ```
 
+
 ## Core Concepts
 
 | Tejas Term  | Purpose                  | Express Equivalent |
@@ -139,6 +143,7 @@ node index.js
 | `midair()`  | Register middleware      | `use()`            |
 | `takeoff()` | Start server             | `listen()`         |
 
+
 ## CLI
 
 ```bash
@@ -146,6 +151,7 @@ tejas fly [file]             # Start the server
 tejas generate:docs [--ci]   # Generate OpenAPI docs (interactive or CI mode)
 tejas docs:on-push           # Auto-generate docs when pushing to production branch
 ```
+
 
 ## API Documentation
 
@@ -160,6 +166,7 @@ app.serveDocs({ specPath: './openapi.json' });
 app.takeoff();
 // Visit http://localhost:1403/docs
 ```
+
 
 ## Documentation
 
@@ -178,9 +185,11 @@ For comprehensive documentation, see the [docs folder](./docs) or visit [tejas-d
 - [Auto-Documentation](./docs/auto-docs.md) — OpenAPI generation
 - [API Reference](./docs/api-reference.md) — Complete API docs
 
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
 
 ## License
 

@@ -7,6 +7,12 @@
   "dir": {
     "targets": "targets"
   },
+  "errors": {
+    "llm": {
+      "enabled": true,
+      "messageType": "endUser"
+    }
+  },
   "body": {
     "max_size": 5242880,
     "timeout": 15000

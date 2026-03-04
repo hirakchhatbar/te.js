@@ -66,9 +66,13 @@ app.takeoff();
 | `body.max_size` | `BODY_MAX_SIZE` | number | `10485760` (10 MB) | Maximum request body size in bytes. Requests exceeding this receive a 413 error |
 | `body.timeout` | `BODY_TIMEOUT` | number | `30000` (30 s) | Body parsing timeout in milliseconds. Requests exceeding this receive a 408 error |
 
+### LLM configuration (feature as parent, LLM inside each feature)
+
+Tejas uses a **feature-as-parent** pattern: each feature that needs an LLM has its own `*.llm` block (`docs.llm` for auto-documentation, `errors.llm` for LLM-inferred errors). **Inheritance from `LLM_*`:** unset feature-specific values fall back to `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL`. One set of `LLM_*` env vars can serve both features when you don't override with `DOCS_LLM_*` or `ERRORS_LLM_*`. You can also use different LLMs per feature (e.g. a lighter model for errors, a stronger one for docs).
+
 ### Auto-Documentation
 
-These options configure the `tejas generate:docs` CLI command and the auto-documentation system. See [Auto-Documentation](./auto-docs.md) for full details.
+These options configure the `tejas generate:docs` CLI command and the auto-documentation system. The **`docs.llm`** block is the LLM configuration for this feature. See [Auto-Documentation](./auto-docs.md) for full details.
 
 | Config Key | Env Variable | Type | Default | Description |
 |------------|-------------|------|---------|-------------|
@@ -78,11 +82,25 @@ These options configure the `tejas generate:docs` CLI command and the auto-docum
 | `docs.version` | — | string | `"1.0.0"` | API version in the OpenAPI `info` block |
 | `docs.description` | — | string | `""` | API description |
 | `docs.level` | — | number | `1` | LLM enhancement level (1–3). Higher = better docs, more tokens |
-| `docs.llm.baseURL` | `LLM_BASE_URL` | string | `"https://api.openai.com/v1"` | LLM provider endpoint |
-| `docs.llm.apiKey` | `LLM_API_KEY` | string | — | LLM provider API key |
-| `docs.llm.model` | `LLM_MODEL` | string | `"gpt-4o-mini"` | LLM model name |
+| `docs.llm.baseURL` | `DOCS_LLM_BASE_URL` or `LLM_BASE_URL` | string | `"https://api.openai.com/v1"` | LLM provider endpoint for auto-docs |
+| `docs.llm.apiKey` | `DOCS_LLM_API_KEY` or `LLM_API_KEY` | string | — | LLM provider API key for auto-docs |
+| `docs.llm.model` | `DOCS_LLM_MODEL` or `LLM_MODEL` | string | `"gpt-4o-mini"` | LLM model for auto-docs |
 | `docs.overviewPath` | — | string | `"./API_OVERVIEW.md"` | Path for the generated overview page (level 3 only) |
 | `docs.productionBranch` | `DOCS_PRODUCTION_BRANCH` | string | `"main"` | Git branch that triggers `docs:on-push` |
+
+### Error handling (LLM-inferred errors)
+
+When [LLM-inferred error codes and messages](./error-handling.md#llm-inferred-errors) are enabled, the **`errors.llm`** block configures the LLM used for inferring status code and message when you call `ammo.throw()` without explicit code or message. Unset values fall back to `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. You can also enable (and optionally set connection options) by calling **`app.withLLMErrors(config?)`** before `takeoff()` — e.g. `app.withLLMErrors()` to use env/config for baseURL, apiKey, model, or `app.withLLMErrors({ baseURL, apiKey, model, messageType })` to override in code.
+
+| Config Key | Env Variable | Type | Default | Description |
+|------------|-------------|------|---------|-------------|
+| `errors.llm.enabled` | `ERRORS_LLM_ENABLED` or `LLM_*` (for connection) | boolean | `false` | Enable LLM-inferred error code and message for `ammo.throw()` |
+| `errors.llm.baseURL` | `ERRORS_LLM_BASE_URL` or `LLM_BASE_URL` | string | `"https://api.openai.com/v1"` | LLM provider endpoint for error inference |
+| `errors.llm.apiKey` | `ERRORS_LLM_API_KEY` or `LLM_API_KEY` | string | — | LLM provider API key for error inference |
+| `errors.llm.model` | `ERRORS_LLM_MODEL` or `LLM_MODEL` | string | `"gpt-4o-mini"` | LLM model for error inference |
+| `errors.llm.messageType` | `ERRORS_LLM_MESSAGE_TYPE` or `LLM_MESSAGE_TYPE` | `"endUser"` \| `"developer"` | `"endUser"` | Default tone for LLM-generated message: `endUser` (safe for clients) or `developer` (technical detail). Overridable per `ammo.throw()` call. |
+
+When enabled, the same behaviour applies whether you call `ammo.throw()` or the framework calls it when it catches an error — one mechanism, no separate config.
 
 ## Configuration File
 
@@ -108,7 +126,19 @@ Create a `tejas.config.json` in your project root:
     "title": "My API",
     "version": "1.0.0",
     "level": 2,
-    "productionBranch": "main"
+    "productionBranch": "main",
+    "llm": {
+      "baseURL": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini"
+    }
+  },
+  "errors": {
+    "llm": {
+      "enabled": true,
+      "baseURL": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini",
+      "messageType": "endUser"
+    }
   }
 }
 ```
@@ -132,10 +162,22 @@ BODY_TIMEOUT=15000
 # Target directory
 DIR_TARGETS=targets
 
-# LLM (for tejas generate:docs)
+# LLM — shared fallback for docs.llm and errors.llm when feature-specific vars are unset
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_API_KEY=sk-...
 LLM_MODEL=gpt-4o-mini
+
+# Optional: override per feature (docs.llm)
+# DOCS_LLM_BASE_URL=...
+# DOCS_LLM_API_KEY=...
+# DOCS_LLM_MODEL=...
+
+# Optional: override for error-inference (errors.llm)
+# ERRORS_LLM_ENABLED=true
+# ERRORS_LLM_BASE_URL=...
+# ERRORS_LLM_API_KEY=...
+# ERRORS_LLM_MODEL=...
+# ERRORS_LLM_MESSAGE_TYPE=endUser   # or "developer" for technical messages
 ```
 
 ## Constructor Options

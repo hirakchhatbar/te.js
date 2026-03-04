@@ -7,6 +7,24 @@ import {
 import html from '../utils/tejas-entrypoint-html.js';
 import ammoEnhancer from './ammo/enhancer.js';
 import TejError from './error.js';
+import { getErrorsLlmConfig } from '../utils/errors-llm-config.js';
+import { inferErrorFromContext } from './errors/llm-error-service.js';
+import { captureCodeContext } from './errors/code-context.js';
+
+/**
+ * Detect if the value is a throw() options object (per-call overrides).
+ * @param {unknown} v
+ * @returns {v is { useLlm?: boolean, messageType?: 'endUser'|'developer' }}
+ */
+function isThrowOptions(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+  const o = /** @type {Record<string, unknown>} */ (v);
+  const hasUseLlm = 'useLlm' in o;
+  const hasMessageType =
+    'messageType' in o &&
+    (o.messageType === 'endUser' || o.messageType === 'developer');
+  return hasUseLlm || hasMessageType === true;
+}
 
 /**
  * Ammo class for handling HTTP requests and responses.
@@ -255,8 +273,8 @@ class Ammo {
   /**
    * Throws an error response with appropriate status code and message.
    *
-   * @param {number|Error|string} [arg1] - Status code, Error object, or error message
-   * @param {string} [arg2] - Error message (only used when arg1 is a status code)
+   * @param {number|Error|string|object} [arg1] - Status code, Error object, error message, or (when no code) options
+   * @param {string|object} [arg2] - Error message (when arg1 is status code) or options (when arg1 is error/empty)
    *
    * @description
    * The throw method is flexible and can handle different argument patterns:
@@ -267,8 +285,14 @@ class Ammo {
    * 4. Error object: Extracts status code and message from the error
    * 5. String: Treats as error message with 500 status code
    *
-   * The key difference between throw() and fire() is that throw() can accept an Error instance
-   * and has special handling for it. Internally, throw() still calls fire() to send the response.
+   * When errors.llm.enabled is true and no explicit code/message is given (no args,
+   * Error, or string/other), an LLM infers statusCode and message from context.
+   * In that case throw() returns a Promise; otherwise it returns undefined.
+   *
+   * Per-call options (last argument, only when no explicit status code): pass an object
+   * with `useLlm` (boolean) and/or `messageType` ('endUser' | 'developer'). Use
+   * `useLlm: false` to skip the LLM for this call; use `messageType` to override
+   * errors.llm.messageType for this call (end-user-friendly vs developer-friendly message).
    *
    * @example
    * // Throw a 404 Not Found error
@@ -285,18 +309,69 @@ class Ammo {
    * @example
    * // Throw an error with a custom message
    * ammo.throw('Something went wrong');
+   *
+   * @example
+   * // Skip LLM for this call; use default 500
+   * ammo.throw(err, { useLlm: false });
+   *
+   * @example
+   * // Force developer-friendly message for this call
+   * ammo.throw(err, { messageType: 'developer' });
+   *
+   * @returns {Promise<void>|void} Promise when LLM path is used; otherwise void
    */
   throw() {
-    // Handle different argument patterns
-    const args = Array.from(arguments);
+    let args = Array.from(arguments);
+    const { enabled: llmEnabled } = getErrorsLlmConfig();
 
-    // Case 1: No arguments provided
+    // Per-call options: last arg can be { useLlm?, messageType? } when call is LLM-eligible (no explicit code).
+    const llmEligible =
+      args.length === 0 ||
+      (!isStatusCode(args[0]) && !(args[0] instanceof TejError));
+    let throwOpts = /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } | null} */ (null);
+    if (llmEligible && args.length > 0 && isThrowOptions(args[args.length - 1])) {
+      throwOpts = /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } } */ (args.pop());
+    }
+
+    const useLlm =
+      llmEnabled &&
+      llmEligible &&
+      throwOpts?.useLlm !== false;
+
+    if (useLlm) {
+      // Use stack from thrown error when available (e.g. handler caught and called ammo.throw(err)) so we capture user code; else current call site.
+      const stack =
+        args[0] instanceof Error && args[0].stack
+          ? args[0].stack
+          : new Error().stack;
+      return captureCodeContext(stack)
+        .then((codeContext) => {
+          const context = {
+            codeContext,
+            method: this.method,
+            path: this.path,
+            includeDevInsight: true,
+            ...(throwOpts?.messageType && { messageType: throwOpts.messageType }),
+          };
+          if (args[0] !== undefined && args[0] !== null) context.error = args[0];
+          return inferErrorFromContext(context);
+        })
+        .then(({ statusCode, message, devInsight }) => {
+          const isProduction = process.env.NODE_ENV === 'production';
+          const data =
+            !isProduction && devInsight
+              ? { message, _dev: devInsight }
+              : message;
+          this.fire(statusCode, data);
+        });
+    }
+
+    // Sync path: explicit code/message or useLlm: false
     if (args.length === 0) {
       this.fire(500, 'Internal Server Error');
       return;
     }
 
-    // Case 2: First argument is a status code
     if (isStatusCode(args[0])) {
       const statusCode = args[0];
       const message = args[1] || toStatusMessage(statusCode);
@@ -304,51 +379,35 @@ class Ammo {
       return;
     }
 
-    // Case 3.1: First argument is an instance of TejError
     if (args[0] instanceof TejError) {
       const error = args[0];
-      const statusCode = error.code;
-      const message = error.message;
-
-      this.fire(statusCode, message);
+      this.fire(error.code, error.message);
       return;
     }
 
-    // Case 3.2: First argument is an Error object
     if (args[0] instanceof Error) {
       const error = args[0];
-
-      // Check if error message is a numeric status code
       if (!isNaN(parseInt(error.message))) {
         const statusCode = parseInt(error.message);
         const message = toStatusMessage(statusCode) || toStatusMessage(500);
         this.fire(statusCode, message);
         return;
       }
-
-      // Use error message as status code if it's a valid status code string
       const statusCode = toStatusCode(error.message);
       if (statusCode) {
         this.fire(statusCode, error.message);
         return;
       }
-
-      // Default error handling
       this.fire(500, error.message);
       return;
     }
 
-    // Case 4: First argument is a string or other value
     const errorValue = args[0];
-
-    // Check if the string represents a status code
     const statusCode = toStatusCode(errorValue);
     if (statusCode) {
       this.fire(statusCode, toStatusMessage(statusCode));
       return;
     }
-
-    // Default case: treat as error message
     this.fire(500, errorValue.toString());
   }
 }

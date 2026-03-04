@@ -54,7 +54,7 @@ const executeChain = async (target, ammo) => {
     } catch (err) {
       // Only handle error if response hasn't been sent
       if (!ammo.res.headersSent && !ammo.res.writableEnded && !ammo.res.finished) {
-        errorHandler(ammo, err);
+        await errorHandler(ammo, err);
       }
     }
   };
@@ -63,16 +63,22 @@ const executeChain = async (target, ammo) => {
 };
 
 /**
- * Handles errors by logging them and sending an appropriate response.
+ * Handles errors: optional logging (log.exceptions) and sending the response via ammo.throw(err).
+ * One mechanism — ammo.throw — takes care of everything (no separate "log then send").
+ * When errors.llm.enabled, framework-caught errors get the same LLM-inferred response as explicit ammo.throw().
+ * When ammo.throw() returns a Promise (LLM path), waits for it to complete.
  *
  * @param {Ammo} ammo - The Ammo instance containing request and response objects.
  * @param {Error} err - The error object to handle.
+ * @returns {Promise<void>}
  */
-const errorHandler = (ammo, err) => {
+const errorHandler = async (ammo, err) => {
   if (env('LOG_EXCEPTIONS')) errorLogger.error(err);
 
-  if (err instanceof TejError) return ammo.throw(err);
-  return ammo.throw(err);
+  const result = ammo.throw(err);
+  if (result != null && typeof result.then === 'function') {
+    await result;
+  }
 };
 
 /**
@@ -102,11 +108,11 @@ const handler = async (req, res) => {
       if (req.url === '/') {
         ammo.defaultEntry();
       } else {
-        errorHandler(ammo, new TejError(404, `URL not found: ${url}`));
+        await errorHandler(ammo, new TejError(404, `URL not found: ${url}`));
       }
     }
   } catch (err) {
-    errorHandler(ammo, err);
+    await errorHandler(ammo, err);
   }
 };
 

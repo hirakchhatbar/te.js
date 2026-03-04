@@ -353,4 +353,3 @@ target.register('/expensive', cache(300), (ammo) => {
 4. **Use factories** — For configurable middleware
 5. **Order matters** — Place authentication before authorization
 6. **Don't mutate payload directly** — Add new properties instead
-
