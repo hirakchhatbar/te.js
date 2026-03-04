@@ -9,6 +9,7 @@ import dbManager from './database/index.js';
 import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
 import targetHandler from './server/handler.js';
+import { getErrorsLlmConfig, validateErrorsLlmAtTakeoff } from './utils/errors-llm-config.js';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
@@ -190,6 +191,13 @@ class Tejas {
    * app.takeoff(); // Server starts on default port 1403
    */
   takeoff({ withRedis, withMongo } = {}) {
+    validateErrorsLlmAtTakeoff();
+    const errorsLlm = getErrorsLlmConfig();
+    if (errorsLlm.enabled) {
+      logger.info(
+        `errors.llm enabled successfully — baseURL: ${errorsLlm.baseURL}, model: ${errorsLlm.model}, messageType: ${errorsLlm.messageType}, apiKey: ${errorsLlm.apiKey ? '***' : '(missing)'}`,
+      );
+    }
     this.engine = createServer(targetHandler);
     this.engine.listen(env('PORT'), async () => {
       logger.info(`Took off from port ${env('PORT')}`);
@@ -290,6 +298,37 @@ class Tejas {
       logger.warn(
         'No MongoDB configuration provided. Skipping MongoDB connection.',
       );
+    }
+    return this;
+  }
+
+  /**
+   * Enables LLM-inferred error codes and messages for ammo.throw() and framework-caught errors.
+   * Call before takeoff(). Remaining options (baseURL, apiKey, model, messageType) can come from
+   * config, or from env/tejas.config.json (LLM_* / ERRORS_LLM_*). Validation runs at takeoff.
+   *
+   * @param {Object} [config] - Optional errors.llm overrides
+   * @param {string} [config.baseURL] - LLM provider endpoint (e.g. https://api.openai.com/v1)
+   * @param {string} [config.apiKey] - LLM provider API key
+   * @param {string} [config.model] - Model name (e.g. gpt-4o-mini)
+   * @param {'endUser'|'developer'} [config.messageType] - Default message tone
+   * @returns {Tejas} The Tejas instance for chaining
+   *
+   * @example
+   * app.withLLMErrors();
+   * app.takeoff();
+   *
+   * @example
+   * app.withLLMErrors({ baseURL: 'https://api.openai.com/v1', apiKey: process.env.OPENAI_KEY, model: 'gpt-4o-mini' });
+   * app.takeoff();
+   */
+  withLLMErrors(config) {
+    setEnv('ERRORS_LLM_ENABLED', true);
+    if (config && typeof config === 'object') {
+      if (config.baseURL != null) setEnv('ERRORS_LLM_BASE_URL', config.baseURL);
+      if (config.apiKey != null) setEnv('ERRORS_LLM_API_KEY', config.apiKey);
+      if (config.model != null) setEnv('ERRORS_LLM_MODEL', config.model);
+      if (config.messageType != null) setEnv('ERRORS_LLM_MESSAGE_TYPE', config.messageType);
     }
     return this;
   }

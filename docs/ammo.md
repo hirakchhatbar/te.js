@@ -138,33 +138,34 @@ After `fire()` is called, the sent data is available as `ammo.dispatchedData`.
 
 ### throw() — Send Error Response
 
-For intentional error responses:
+**One mechanism** for error responses: you don't log the error and send the response separately — `ammo.throw()` takes care of everything. The framework uses the same `ammo.throw()` when it catches an error, so one config, one behaviour. For intentional errors, call `ammo.throw()` (or pass an error); when [LLM-inferred errors](./error-handling.md#llm-inferred-errors) are enabled, call with no arguments and an LLM infers status and message from code context. Explicit code/message always override. See [Error Handling](./error-handling.md) and per-call options (e.g. `messageType`).
 
 ```javascript
-// Send 500 Internal Server Error
-ammo.throw();
-
-// Send specific error code
+// Explicit: status code and/or message
 ammo.throw(404);
 ammo.throw(404, 'User not found');
+ammo.throw(new TejError(400, 'Invalid input'));
 
-// Throw from Error object
-ammo.throw(new Error('Something went wrong'));
+// When errors.llm.enabled: no args — LLM infers from code context (surrounding + upstream/downstream)
+ammo.throw();
 
-// Throw TejError
-import { TejError } from 'te.js';
-throw new TejError(400, 'Invalid input');
+// Optional: pass caught error for secondary signal; LLM still uses code context (error stack) as primary
+ammo.throw(caughtErr);
+
+// Per-call: skip LLM or override message type
+ammo.throw({ useLlm: false });
+ammo.throw({ messageType: 'developer' });
 ```
 
 **All `throw()` signatures:**
 
 | Call | Status | Message |
 |------|--------|---------|
-| `throw()` | 500 | `"Internal Server Error"` |
+| `throw()` | 500 or LLM-inferred | Default or LLM-derived from **code context** (see [LLM-inferred errors](./error-handling.md#llm-inferred-errors)) |
 | `throw(404)` | 404 | Default message for that status code |
 | `throw(404, "msg")` | 404 | `"msg"` |
 | `throw(new TejError(code, msg))` | `code` | `msg` |
-| `throw(new Error("msg"))` | 500 | `"msg"` (or parses numeric messages as status codes) |
+| `throw(error)` (optional) | LLM-inferred | LLM-derived from code context (error stack used to find call site) |
 
 > **Note:** You don't need try-catch blocks in your handlers! Tejas automatically catches all errors and converts them to appropriate HTTP responses. Use `throw()` or `TejError` only for intentional, expected error conditions. See [Error Handling](./error-handling.md) for details.
 

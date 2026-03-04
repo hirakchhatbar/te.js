@@ -47,7 +47,7 @@ app.takeoff();
 - **AI-Native (MCP)** — Ship with an MCP server so AI assistants can scaffold projects, generate routes, and write correct code with full framework knowledge
 - **Simple Routing** — Clean, method-agnostic URL structures with parameterized routes
 - **Express Compatible** — Use existing Express middleware alongside Tejas middleware
-- **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
+- **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically. Opt in to have an LLM determine error code and message when you don't specify them (see [Error Handling](./docs/error-handling.md))
 - **Built-in Rate Limiting** — Three algorithms (Token Bucket, Sliding Window, Fixed Window) with memory or Redis storage
 - **Database Ready** — First-class Redis and MongoDB support with auto-install of drivers
 - **File Uploads** — Easy file handling with size limits and type validation

@@ -263,15 +263,16 @@ Send a response to the client.
 
 #### throw()
 
-Send an error response.
+Send an error response. When [LLM-inferred errors](./error-handling.md#llm-inferred-errors) are enabled (`errors.llm.enabled`), calls without explicit status code or message use an LLM to infer code and message; explicit code/message always override.
 
 | Signature | Behavior |
 |-----------|----------|
-| `throw()` | 500 "Internal Server Error" |
+| `throw()` | 500 "Internal Server Error" (or LLM-inferred when `errors.llm.enabled`) |
 | `throw(404)` | 404 with default status message |
 | `throw(404, "msg")` | 404 with custom message |
 | `throw(new TejError(code, msg))` | Uses TejError's code and message |
-| `throw(new Error("msg"))` | 500 with error message |
+| `throw(new Error("msg"))` | 500 with error message, or LLM-inferred when `errors.llm.enabled` |
+| LLM-inferred (no explicit code/message, `errors.llm.enabled`) | Status and message derived by LLM from context |
 
 #### redirect(url, statusCode)
 
@@ -307,7 +308,7 @@ Sends the default Tejas HTML entry page. Used internally for the root `/` route 
 
 ## TejError Class
 
-Custom error class for HTTP errors.
+Custom error class for HTTP errors. Use it when you want to set the response explicitly; both status code and message are optional when errors are passed through `ammo.throw()` with [LLM-inferred errors](./error-handling.md#llm-inferred-errors) enabled (the LLM can infer them).
 
 ```javascript
 import { TejError } from 'te.js';
@@ -317,8 +318,8 @@ throw new TejError(statusCode, message);
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `statusCode` | number | HTTP status code |
-| `message` | string | Error message |
+| `statusCode` | number | HTTP status code (optional when LLM infers; otherwise use for override) |
+| `message` | string | Error message (optional when LLM infers; otherwise use for override) |
 
 | Property | Type | Description |
 |----------|------|-------------|

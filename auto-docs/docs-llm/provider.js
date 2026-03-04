@@ -1,10 +1,9 @@
 /**
- * LLM provider for auto-documentation: single OpenAI-compatible implementation.
- * Works with OpenAI, OpenRouter, Ollama (OpenAI-compatible endpoint), Azure, etc.
- * Uses fetch() only — no provider-specific npm dependencies.
+ * LLM provider for auto-documentation: extends shared lib/llm client with doc-specific methods.
+ * Single OpenAI-compatible implementation; works with OpenAI, OpenRouter, Ollama, Azure, etc.
  */
 
-import { extractJSON, extractJSONArray, reconcileOrderedTags } from './parse.js';
+import { LLMProvider as BaseLLMProvider, extractJSON, extractJSONArray, reconcileOrderedTags } from '../../lib/llm/index.js';
 import {
   buildSummarizeGroupPrompt,
   buildEnhanceEndpointPrompt,
@@ -13,59 +12,10 @@ import {
   buildOverviewPrompt,
 } from './prompts.js';
 
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
-const DEFAULT_MODEL = 'gpt-4o-mini';
-
 /**
- * OpenAI-compatible LLM provider. POSTs to {baseURL}/chat/completions.
+ * Docs-specific LLM provider: base analyze() from lib/llm plus summarizeTargetGroup, enhanceEndpointDocs, etc.
  */
-class LLMProvider {
-  constructor(options = {}) {
-    this.baseURL = (options.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
-    this.model = options.model ?? DEFAULT_MODEL;
-    this.apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
-    this.options = options;
-  }
-
-  /**
-   * Send a prompt to the LLM and return the raw text response.
-   * @param {string} prompt
-   * @returns {Promise<string>}
-   */
-  async analyze(prompt) {
-    const url = `${this.baseURL}/chat/completions`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(this.apiKey && { Authorization: `Bearer ${this.apiKey}` }),
-    };
-    const body = {
-      model: this.model,
-      messages: [{ role: 'user', content: prompt }],
-    };
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`LLM request failed (${res.status}): ${text.slice(0, 300)}`);
-    }
-
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content ?? '';
-    const text = typeof content === 'string' ? content : JSON.stringify(content);
-    const rawUsage = data.usage;
-    const usage = {
-      prompt_tokens: rawUsage?.prompt_tokens ?? 0,
-      completion_tokens: rawUsage?.completion_tokens ?? 0,
-      total_tokens: rawUsage?.total_tokens ?? (rawUsage?.prompt_tokens ?? 0) + (rawUsage?.completion_tokens ?? 0),
-    };
-    return { content: text, usage };
-  }
-
+class DocsLLMProvider extends BaseLLMProvider {
   /**
    * Summarize what a target file (group) does from its endpoints and handler context.
    * @param {string} groupId - Group id (e.g. target file path without .target.js)
@@ -166,22 +116,17 @@ class LLMProvider {
 }
 
 /**
- * Create an LLM provider from config.
- * Single OpenAI-compatible setup: works with OpenAI, OpenRouter, Ollama (compat), Azure, etc.
- *
+ * Create a docs-specific LLM provider from config (same config shape as lib/llm).
  * @param {object} config - { baseURL?, apiKey?, model? }
- *   - baseURL: e.g. 'https://api.openai.com/v1' | 'https://openrouter.ai/api/v1' | 'http://localhost:11434/v1'
- *   - apiKey: optional for local (e.g. Ollama); use OPENAI_API_KEY or OPENROUTER_API_KEY
- *   - model: e.g. 'gpt-4o-mini' | 'openai/gpt-4o-mini' (OpenRouter)
- * @returns {LLMProvider}
+ * @returns {DocsLLMProvider}
  */
 function createProvider(config) {
   if (!config || typeof config !== 'object') {
-    return new LLMProvider({});
+    return new DocsLLMProvider({});
   }
-  return new LLMProvider(config);
+  return new DocsLLMProvider(config);
 }
 
-export { LLMProvider, createProvider };
-export { extractJSON, extractJSONArray } from './parse.js';
-export default LLMProvider;
+export { DocsLLMProvider as LLMProvider, createProvider };
+export { extractJSON, extractJSONArray, reconcileOrderedTags } from '../../lib/llm/index.js';
+export default DocsLLMProvider;
