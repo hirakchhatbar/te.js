@@ -7,6 +7,9 @@ import TejError from './error.js';
 import targetRegistry from './targets/registry.js';
 
 const errorLogger = new TejLogger('Tejas.Exception');
+const logger = new TejLogger('Tejas');
+/** Paths we have already warned about (missing allowed methods). */
+const warnedPaths = new Set();
 
 const DEFAULT_ALLOWED_METHODS = [
   'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS',
@@ -133,6 +136,12 @@ const handler = async (req, res) => {
           ammo.res.setHeader('Allow', allowedMethods.join(', '));
           await errorHandler(ammo, new TejError(405, 'Method Not Allowed'));
           return;
+        }
+      } else if (env('WARN_MISSING_ALLOWED_METHODS') !== 'false') {
+        const path = match.target.getPath();
+        if (!warnedPaths.has(path)) {
+          warnedPaths.add(path);
+          logger.warn(`Endpoint missing allowed methods: ${path}`);
         }
       }
 

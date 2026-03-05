@@ -59,6 +59,16 @@ app.takeoff();
 | `log.http_requests` | `LOG_HTTP_REQUESTS` | boolean | `false` | Log incoming HTTP requests (method, path, status, time) |
 | `log.exceptions` | `LOG_EXCEPTIONS` | boolean | `false` | Log unhandled exceptions and errors |
 
+### Developer warnings
+
+When an endpoint is called and it has no allowed methods defined (see [Routing — Endpoint Metadata](./routing.md#endpoint-metadata)), the framework logs a warning once per path so you can restrict methods for security (405 and `Allow` header). To disable this warning:
+
+| Config Key | Env Variable | Type | Default | Description |
+|------------|-------------|------|---------|-------------|
+| `warn_missing_allowed_methods` | `WARN_MISSING_ALLOWED_METHODS` | boolean/string | *(warn)* | Set to `false` to disable the runtime warning for endpoints without allowed methods. |
+
+Example: in `tejas.config.json` use `"warn_missing_allowed_methods": false`, or in `.env` use `WARN_MISSING_ALLOWED_METHODS=false`.
+
 ### Request Body
 
 | Config Key | Env Variable | Type | Default | Description |
@@ -178,6 +188,9 @@ LLM_MODEL=gpt-4o-mini
 # ERRORS_LLM_API_KEY=...
 # ERRORS_LLM_MODEL=...
 # ERRORS_LLM_MESSAGE_TYPE=endUser   # or "developer" for technical messages
+
+# Optional: disable runtime warning for endpoints without allowed methods
+# WARN_MISSING_ALLOWED_METHODS=false
 ```
 
 ## Constructor Options
