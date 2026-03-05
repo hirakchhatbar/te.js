@@ -1,7 +1,7 @@
 {
   "name": "te.js",
   "version": "2.1.1",
-  "description": "A nodejs framework",
+  "description": "AI Native Node.js Framework",
   "type": "module",
   "main": "te.js",
   "bin": {
@@ -30,6 +30,7 @@
   "files": [
     "te.js",
     "cli",
+    "cors",
     "server",
     "database",
     "rate-limit",
