@@ -103,7 +103,7 @@ class Ammo {
   async enhance() {
     await ammoEnhancer(this);
 
-    this.GET = this.method === 'GET';
+    this.GET = this.method === 'GET' || this.method === 'HEAD';
     this.POST = this.method === 'POST';
     this.PUT = this.method === 'PUT';
     this.DELETE = this.method === 'DELETE';
@@ -232,7 +232,46 @@ class Ammo {
    *   ammo.notAllowed();
    * }
    */
-  notAllowed() {
+  /**
+   * Restricts the handler to the given HTTP method(s). If the request method is not in the list,
+   * sets the Allow header and throws 405 Method Not Allowed.
+   *
+   * @param {...string} methods - Allowed methods (e.g. 'GET', 'POST'). Case-insensitive.
+   * @throws {TejError} 405 when the request method is not allowed
+   *
+   * @example
+   * target.register('/health', (ammo) => {
+   *   ammo.only('GET');
+   *   ammo.fire({ status: 'ok' });
+   * });
+   */
+  only(...methods) {
+    const allowed = methods.map((m) => String(m).toUpperCase());
+    const method = this.method ? String(this.method).toUpperCase() : '';
+    if (!method || !allowed.includes(method)) {
+      this.res.setHeader('Allow', allowed.join(', '));
+      throw new TejError(405, 'Method Not Allowed');
+    }
+  }
+
+  /**
+   * Throws a 405 Method Not Allowed error. Optionally sets the Allow header when allowed methods are provided.
+   *
+   * @param {...string} [allowedMethods] - Allowed methods for the Allow header (e.g. 'GET', 'POST'). Omit for no header.
+   * @throws {TejError} Always throws a TejError with status code 405
+   *
+   * @example
+   * if (!allowedMethods.includes(ammo.method)) {
+   *   ammo.notAllowed('GET', 'POST');
+   * }
+   */
+  notAllowed(...allowedMethods) {
+    if (allowedMethods.length > 0) {
+      this.res.setHeader(
+        'Allow',
+        allowedMethods.map((m) => String(m).toUpperCase()).join(', '),
+      );
+    }
     throw new TejError(405, 'Method Not Allowed');
   }
 

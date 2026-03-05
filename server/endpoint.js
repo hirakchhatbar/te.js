@@ -8,6 +8,8 @@ class Endpoint {
     this.middlewares = [];
     this.handler = null;
     this.metadata = null;
+    /** Allowed HTTP methods (e.g. ['GET', 'POST']). null = method-agnostic. */
+    this.methods = null;
     /** Source group (e.g. target file id) for grouping in docs. Set by loader before register(). */
     this.group = null;
   }
@@ -45,6 +47,23 @@ class Endpoint {
     return this;
   }
 
+  /**
+   * @param {string[]|null} methods - Allowed HTTP methods (e.g. ['GET', 'POST']). null = method-agnostic.
+   */
+  setMethods(methods) {
+    if (methods == null) {
+      this.methods = null;
+      return this;
+    }
+    const arr = Array.isArray(methods) ? methods : [methods];
+    let normalized = arr.map((m) => String(m).toUpperCase()).filter(Boolean);
+    if (normalized.includes('GET') && !normalized.includes('HEAD')) {
+      normalized = [...normalized, 'HEAD'];
+    }
+    this.methods = normalized.length > 0 ? normalized : null;
+    return this;
+  }
+
   setGroup(group) {
     this.group = group ?? null;
     return this;
@@ -64,6 +83,10 @@ class Endpoint {
 
   getMetadata() {
     return this.metadata;
+  }
+
+  getMethods() {
+    return this.methods;
   }
 
   getGroup() {

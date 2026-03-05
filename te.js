@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
 import rateLimiter from './rate-limit/index.js';
+import corsMiddleware from './cors/index.js';
 
 import targetRegistry from './server/targets/registry.js';
 import dbManager from './database/index.js';
@@ -356,6 +357,31 @@ class Tejas {
     }
 
     this.midair(rateLimiter(config));
+    return this;
+  }
+
+  /**
+   * Adds CORS middleware. Sets Access-Control-* headers and responds to OPTIONS preflight with 204.
+   *
+   * @param {Object} [config] - CORS configuration
+   * @param {string|string[]|((origin: string) => boolean)} [config.origin='*'] - Allowed origin(s)
+   * @param {string[]} [config.methods] - Allowed methods (default: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
+   * @param {string[]} [config.allowedHeaders=['Content-Type','Authorization']] - Allowed request headers
+   * @param {boolean} [config.credentials=false] - Allow credentials
+   * @param {number} [config.maxAge] - Preflight cache max age in seconds
+   * @returns {Tejas} The Tejas instance for chaining
+   *
+   * @example
+   * app.withCORS({
+   *   origin: ['https://example.com'],
+   *   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+   *   allowedHeaders: ['Content-Type', 'Authorization'],
+   *   credentials: true,
+   *   maxAge: 86400,
+   * });
+   */
+  withCORS(config = {}) {
+    this.midair(corsMiddleware(config));
     return this;
   }
 
