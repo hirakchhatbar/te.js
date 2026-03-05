@@ -5,7 +5,7 @@
   "type": "module",
   "main": "te.js",
   "bin": {
-    "tejas": "./cli/index.js"
+    "tejas": "cli/index.js"
   },
   "scripts": {
     "start": "node te.js",

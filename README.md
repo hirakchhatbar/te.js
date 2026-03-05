@@ -49,6 +49,7 @@ app.takeoff();
 - **Express Compatible** — Use existing Express middleware alongside Tejas middleware
 - **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically. Opt in to have an LLM determine error code and message when you don't specify them (see [Error Handling](./docs/error-handling.md))
 - **Built-in Rate Limiting** — Three algorithms (Token Bucket, Sliding Window, Fixed Window) with memory or Redis storage
+- **Method Safety & CORS** — Opt-in method restriction per route (`register(path, { methods }, handler)` or `ammo.only('GET')`), global allowed-methods filter, and `app.withCORS()` for cross-origin requests
 - **Database Ready** — First-class Redis and MongoDB support with auto-install of drivers
 - **File Uploads** — Easy file handling with size limits and type validation
 - **Auto-Documentation** — Generate OpenAPI specs from your code with LLM-powered analysis (`tejas generate:docs`)

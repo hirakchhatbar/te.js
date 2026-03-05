@@ -8,6 +8,24 @@ import targetRegistry from './targets/registry.js';
 
 const errorLogger = new TejLogger('Tejas.Exception');
 
+const DEFAULT_ALLOWED_METHODS = [
+  'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS',
+];
+
+/**
+ * Returns the set of allowed HTTP methods (configurable via allowedMethods in tejas.config.json or ALLOWEDMETHODS env).
+ * @returns {Set<string>}
+ */
+const getAllowedMethods = () => {
+  const raw = env('ALLOWEDMETHODS');
+  if (raw == null) return new Set(DEFAULT_ALLOWED_METHODS);
+  const arr = Array.isArray(raw)
+    ? raw
+    : (typeof raw === 'string' ? raw.split(',').map((s) => s.trim()) : []);
+  const normalized = arr.map((m) => String(m).toUpperCase()).filter(Boolean);
+  return normalized.length > 0 ? new Set(normalized) : new Set(DEFAULT_ALLOWED_METHODS);
+};
+
 /**
  * Executes the middleware and handler chain for a given target.
  *
@@ -89,6 +107,17 @@ const errorHandler = async (ammo, err) => {
  * @returns {Promise<void>} A promise that resolves when the request handling is complete.
  */
 const handler = async (req, res) => {
+  const allowedMethods = getAllowedMethods();
+  const method = req.method ? String(req.method).toUpperCase() : '';
+  if (!method || !allowedMethods.has(method)) {
+    res.writeHead(405, {
+      'Content-Type': 'text/plain',
+      Allow: [...allowedMethods].join(', '),
+    });
+    res.end('Method Not Allowed');
+    return;
+  }
+
   const url = req.url.split('?')[0];
   const match = targetRegistry.aim(url);
   const ammo = new Ammo(req, res);
@@ -96,6 +125,16 @@ const handler = async (req, res) => {
   try {
     if (match && match.target) {
       await ammo.enhance();
+
+      const allowedMethods = match.target.getMethods();
+      if (allowedMethods != null && allowedMethods.length > 0) {
+        const method = ammo.method && String(ammo.method).toUpperCase();
+        if (!method || !allowedMethods.includes(method)) {
+          ammo.res.setHeader('Allow', allowedMethods.join(', '));
+          await errorHandler(ammo, new TejError(405, 'Method Not Allowed'));
+          return;
+        }
+      }
 
       // Add route parameters to ammo.payload
       if (match.params && Object.keys(match.params).length > 0) {

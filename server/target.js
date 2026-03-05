@@ -84,6 +84,7 @@ class Target {
    * Registers a new endpoint under this target.
    *
    * @param {string} path - The path for the endpoint, relative to the base path.
+   * @param {Object} [metadata] - Optional metadata. If the second argument is a plain object, it is treated as metadata (e.g. { methods: ['GET', 'POST'] }). When `methods` is set, the framework returns 405 for other HTTP methods before the handler runs. HEAD is allowed automatically when GET is in the list.
    * @param {...Function} [middlewares] - Optional middleware functions specific to this endpoint.
    * @param {Function} shoot - The handler function for the endpoint.
    * @returns {void}
@@ -92,6 +93,12 @@ class Target {
    * // Register a simple endpoint
    * target.register('/hello', (ammo) => {
    *   ammo.fire({ message: 'Hello World' });
+   * });
+   *
+   * // Register with allowed methods (405 + Allow header for others)
+   * target.register('/users', { methods: ['GET', 'POST'] }, (ammo) => {
+   *   if (ammo.GET) return ammo.fire(userService.list());
+   *   if (ammo.POST) return ammo.fire(201, userService.create(ammo.payload));
    * });
    *
    * // Register an endpoint with specific middleware
@@ -159,6 +166,9 @@ class Target {
       }
       if (metadata !== null) {
         endpoint.setMetadata(metadata);
+        if (Array.isArray(metadata.methods) && metadata.methods.length > 0) {
+          endpoint.setMethods(metadata.methods);
+        }
       }
       const group = targetRegistry.getCurrentSourceGroup();
       if (group != null) {
