@@ -30,6 +30,60 @@ describe('handler-analyzer', () => {
       const handler = () => {};
       expect(detectMethods(handler)).toEqual(ALL_METHODS);
     });
+
+    it('detects GET and HEAD when handler uses ammo.only("GET")', () => {
+      const handler = (ammo) => {
+        ammo.only('GET');
+        ammo.fire({ status: 'ok' });
+      };
+      const detected = detectMethods(handler);
+      expect(detected).toContain('GET');
+      expect(detected).toContain('HEAD');
+      expect(detected).toHaveLength(2);
+    });
+
+    it('detects POST and PUT when handler uses ammo.only("POST", "PUT")', () => {
+      const handler = (ammo) => {
+        ammo.only('POST', 'PUT');
+        ammo.fire(200, {});
+      };
+      const detected = detectMethods(handler);
+      expect(detected).toContain('POST');
+      expect(detected).toContain('PUT');
+      expect(detected).toHaveLength(2);
+    });
+
+    it('detects from ammo.only with double-quoted methods', () => {
+      const handler = (ammo) => {
+        ammo.only("GET");
+        ammo.fire(200);
+      };
+      const detected = detectMethods(handler);
+      expect(detected).toContain('GET');
+      expect(detected).toContain('HEAD');
+    });
+
+    it('detects from .only with no space after comma', () => {
+      const handler = (ammo) => {
+        ammo.only('GET','POST');
+        ammo.fire(200);
+      };
+      const detected = detectMethods(handler);
+      expect(detected).toContain('GET');
+      expect(detected).toContain('HEAD');
+      expect(detected).toContain('POST');
+      expect(detected).toHaveLength(3);
+    });
+
+    it('prefers ammo.only over property access when both present', () => {
+      const handler = (ammo) => {
+        ammo.only('POST');
+        if (ammo.GET) ammo.fire(200);
+        ammo.fire(201, {});
+      };
+      const detected = detectMethods(handler);
+      expect(detected).toEqual(['POST']);
+    });
   });
 
   describe('analyzeHandler', () => {
