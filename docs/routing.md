@@ -214,6 +214,8 @@ target.register('/users', {
 
 When metadata is omitted, the auto-docs LLM infers everything from the handler source code.
 
+If an endpoint has no `methods` in its metadata (and does not use `ammo.only()` to restrict methods), the framework logs a warning the first time that path is called. You can disable this warning via config: set `WARN_MISSING_ALLOWED_METHODS=false` (env) or `warn_missing_allowed_methods: false` in config. See [Configuration — Developer warnings](./configuration.md#developer-warnings).
+
 ## Method-Agnostic Handlers
 
 If a handler does not check any method flags (`ammo.GET`, `ammo.POST`, etc.), it is treated as accepting **all HTTP methods**. This is useful for simple endpoints:
