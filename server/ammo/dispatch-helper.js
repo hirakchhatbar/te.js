@@ -1,4 +1,5 @@
 import status from 'statuses';
+import { getResponseConfig } from '../../utils/response-config.js';
 
 const formattedData = (data) => {
   if (data === null || data === undefined) return '';
@@ -17,64 +18,72 @@ const formattedData = (data) => {
   return String(data);
 };
 
+/**
+ * Apply response structure envelope when enabled.
+ * 2xx → { [successKey]: data }; 4xx/5xx → { [errorKey]: data }; 204 and when disabled → pass through.
+ * @param {number} statusCode
+ * @param {unknown} data
+ * @returns {unknown}
+ */
+const applyResponseStructure = (statusCode, data) => {
+  const { enabled, successKey, errorKey } = getResponseConfig();
+  if (!enabled) return data;
+  if (statusCode === 204) return data;
+  if (statusCode >= 200 && statusCode < 300) {
+    return { [successKey]: data };
+  }
+  if (statusCode >= 400) {
+    return { [errorKey]: data };
+  }
+  return data;
+};
+
 const statusAndData = (args) => {
+  let statusCode;
+  let rawData;
+  let customContentType = null;
+
   // Handle no arguments
   if (!args || args.length === 0) {
-    return {
-      statusCode: 204,
-      data: status(204),
-      contentType: 'text/plain',
-    };
-  }
-
-  // Handle single argument
-  if (args.length === 1) {
+    statusCode = 204;
+    rawData = status(204);
+  } else if (args.length === 1) {
     const arg = args[0];
 
     // If it's a number, treat as status code
     if (typeof arg === 'number') {
-      return {
-        statusCode: arg,
-        data: status(arg) || String(arg),
-        contentType: 'text/plain',
-      };
+      statusCode = arg;
+      rawData = status(arg) || String(arg);
+    } else {
+      // Otherwise treat as data
+      statusCode = 200;
+      rawData = arg;
     }
-
-    // Otherwise treat as data
-    return {
-      statusCode: 200,
-      data: formattedData(arg),
-      contentType: contentType(arg),
-    };
-  }
-
-  // Handle multiple arguments
-  let statusCode = 200;
-  let data = args[0];
-
-  // If first argument is a number, treat as status code
-  if (typeof args[0] === 'number') {
-    statusCode = args[0];
-    data = args[1];
   } else {
-    // If first argument is not a number, check if second is
-    if (typeof args[1] === 'number') {
+    // Handle multiple arguments
+    statusCode = 200;
+    rawData = args[0];
+
+    if (typeof args[0] === 'number') {
+      statusCode = args[0];
+      rawData = args[1];
+    } else if (typeof args[1] === 'number') {
       statusCode = args[1];
     }
+
+    if (rawData === undefined) {
+      rawData = status[statusCode] || String(statusCode);
+    }
+
+    customContentType = args.length > 2 ? args[2] : null;
   }
 
-  // If data is undefined, use status message
-  if (data === undefined) {
-    data = status[statusCode] || String(statusCode);
-  }
-
-  // If third argument is provided, it's the content type
-  const customContentType = args.length > 2 ? args[2] : null;
+  const wrapped = applyResponseStructure(statusCode, rawData);
 
   return {
     statusCode,
-    data: formattedData(data),
-    contentType: customContentType || contentType(data),
+    data: formattedData(wrapped),
+    contentType: customContentType || contentType(wrapped),
   };
 };
 

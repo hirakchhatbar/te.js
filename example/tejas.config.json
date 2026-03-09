@@ -7,6 +7,11 @@
   "dir": {
     "targets": "targets"
   },
+  "response": {
+    "envelopeEnabled": true,
+    "successKey": "data",
+    "errorKey": "error"
+  },
   "errors": {
     "llm": {
       "enabled": true,
