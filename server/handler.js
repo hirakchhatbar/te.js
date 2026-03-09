@@ -12,7 +12,13 @@ const logger = new TejLogger('Tejas');
 const warnedPaths = new Set();
 
 const DEFAULT_ALLOWED_METHODS = [
-  'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS',
+  'GET',
+  'POST',
+  'PUT',
+  'DELETE',
+  'PATCH',
+  'HEAD',
+  'OPTIONS',
 ];
 
 /**
@@ -24,9 +30,13 @@ const getAllowedMethods = () => {
   if (raw == null) return new Set(DEFAULT_ALLOWED_METHODS);
   const arr = Array.isArray(raw)
     ? raw
-    : (typeof raw === 'string' ? raw.split(',').map((s) => s.trim()) : []);
+    : typeof raw === 'string'
+      ? raw.split(',').map((s) => s.trim())
+      : [];
   const normalized = arr.map((m) => String(m).toUpperCase()).filter(Boolean);
-  return normalized.length > 0 ? new Set(normalized) : new Set(DEFAULT_ALLOWED_METHODS);
+  return normalized.length > 0
+    ? new Set(normalized)
+    : new Set(DEFAULT_ALLOWED_METHODS);
 };
 
 /**
@@ -58,23 +68,31 @@ const executeChain = async (target, ammo) => {
 
     try {
       const result = await middleware(...args);
-      
+
       // Check again after middleware execution (passport might have redirected)
       if (ammo.res.headersSent || ammo.res.writableEnded || ammo.res.finished) {
         return;
       }
-      
+
       // If middleware returned a promise that resolved, continue chain
       if (result && typeof result.then === 'function') {
         await result;
         // Check one more time after promise resolution
-        if (ammo.res.headersSent || ammo.res.writableEnded || ammo.res.finished) {
+        if (
+          ammo.res.headersSent ||
+          ammo.res.writableEnded ||
+          ammo.res.finished
+        ) {
           return;
         }
       }
     } catch (err) {
       // Only handle error if response hasn't been sent
-      if (!ammo.res.headersSent && !ammo.res.writableEnded && !ammo.res.finished) {
+      if (
+        !ammo.res.headersSent &&
+        !ammo.res.writableEnded &&
+        !ammo.res.finished
+      ) {
         await errorHandler(ammo, err);
       }
     }
@@ -126,9 +144,11 @@ const handler = async (req, res) => {
   const ammo = new Ammo(req, res);
 
   try {
-    if (match && match.target) {
-      await ammo.enhance();
+    // Enhance ammo for all requests (matched or not) so global middlewares
+    // always receive a fully-populated ammo (method flags, headers, payload, etc.).
+    await ammo.enhance();
 
+    if (match && match.target) {
       const allowedMethods = match.target.getMethods();
       if (allowedMethods != null && allowedMethods.length > 0) {
         const method = ammo.method && String(ammo.method).toUpperCase();
@@ -156,7 +176,23 @@ const handler = async (req, res) => {
       if (req.url === '/') {
         ammo.defaultEntry();
       } else {
-        await errorHandler(ammo, new TejError(404, `URL not found: ${url}`));
+        // Run global middlewares (CORS preflight, auth, logging, etc.) even for
+        // unmatched routes. A pseudo-target with no route-specific middlewares
+        // is used so the 404 response is sent at the end of the global chain.
+        await executeChain(
+          {
+            getMiddlewares: () => [],
+            getHandler: () => async () => {
+              if (!ammo.res.headersSent) {
+                await errorHandler(
+                  ammo,
+                  new TejError(404, `URL not found: ${url}`),
+                );
+              }
+            },
+          },
+          ammo,
+        );
       }
     }
   } catch (err) {
