@@ -36,7 +36,7 @@ import Tejas from 'te.js';
 
 const app = new Tejas({
   port: 3000,
-  log: { http_requests: true }
+  log: { http_requests: true },
 });
 
 app.takeoff();
@@ -46,35 +46,45 @@ app.takeoff();
 
 ### Core
 
-| Config Key | Env Variable | Type | Default | Description |
-|------------|-------------|------|---------|-------------|
-| `entry` | `ENTRY` | string | *(auto-resolved)* | Entry file for `tejas fly`. Falls back to `package.json` `main`, then `index.js` / `app.js` / `server.js` |
-| `port` | `PORT` | number | `1403` | Server port |
-| `dir.targets` | `DIR_TARGETS` | string | `"targets"` | Directory containing `.target.js` files for auto-discovery |
+| Config Key    | Env Variable  | Type   | Default           | Description                                                                                               |
+| ------------- | ------------- | ------ | ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `entry`       | `ENTRY`       | string | _(auto-resolved)_ | Entry file for `tejas fly`. Falls back to `package.json` `main`, then `index.js` / `app.js` / `server.js` |
+| `port`        | `PORT`        | number | `1403`            | Server port                                                                                               |
+| `dir.targets` | `DIR_TARGETS` | string | `"targets"`       | Directory containing `.target.js` files for auto-discovery                                                |
 
 ### Logging
 
-| Config Key | Env Variable | Type | Default | Description |
-|------------|-------------|------|---------|-------------|
+| Config Key          | Env Variable        | Type    | Default | Description                                             |
+| ------------------- | ------------------- | ------- | ------- | ------------------------------------------------------- |
 | `log.http_requests` | `LOG_HTTP_REQUESTS` | boolean | `false` | Log incoming HTTP requests (method, path, status, time) |
-| `log.exceptions` | `LOG_EXCEPTIONS` | boolean | `false` | Log unhandled exceptions and errors |
+| `log.exceptions`    | `LOG_EXCEPTIONS`    | boolean | `false` | Log unhandled exceptions and errors                     |
+
+### Response Structure {#response-structure}
+
+By default, Tejas wraps all success responses in `{ data: ... }` and all error responses in `{ error: ... }`. This gives clients a consistent envelope. See [Ammo — fire()](./ammo.md#fire----send-response) for examples. Disable or customize via the options below.
+
+| Config Key                 | Env Variable                | Type    | Default   | Description                                                                              |
+| -------------------------- | --------------------------- | ------- | --------- | ---------------------------------------------------------------------------------------- |
+| `response.envelopeEnabled` | `RESPONSE_ENVELOPE_ENABLED` | boolean | `true`    | Enable response envelope: wrap success in `{ data: ... }` and errors in `{ error: ... }` |
+| `response.successKey`      | `RESPONSE_SUCCESSKEY`       | string  | `"data"`  | Key used to wrap 2xx response bodies                                                     |
+| `response.errorKey`        | `RESPONSE_ERRORKEY`         | string  | `"error"` | Key used to wrap 4xx/5xx response bodies                                                 |
 
 ### Developer warnings
 
 When an endpoint is called and it has no allowed methods defined (see [Routing — Endpoint Metadata](./routing.md#endpoint-metadata)), the framework logs a warning once per path so you can restrict methods for security (405 and `Allow` header). To disable this warning:
 
-| Config Key | Env Variable | Type | Default | Description |
-|------------|-------------|------|---------|-------------|
-| `warn_missing_allowed_methods` | `WARN_MISSING_ALLOWED_METHODS` | boolean/string | *(warn)* | Set to `false` to disable the runtime warning for endpoints without allowed methods. |
+| Config Key                     | Env Variable                   | Type           | Default  | Description                                                                          |
+| ------------------------------ | ------------------------------ | -------------- | -------- | ------------------------------------------------------------------------------------ |
+| `warn_missing_allowed_methods` | `WARN_MISSING_ALLOWED_METHODS` | boolean/string | _(warn)_ | Set to `false` to disable the runtime warning for endpoints without allowed methods. |
 
 Example: in `tejas.config.json` use `"warn_missing_allowed_methods": false`, or in `.env` use `WARN_MISSING_ALLOWED_METHODS=false`.
 
 ### Request Body
 
-| Config Key | Env Variable | Type | Default | Description |
-|------------|-------------|------|---------|-------------|
-| `body.max_size` | `BODY_MAX_SIZE` | number | `10485760` (10 MB) | Maximum request body size in bytes. Requests exceeding this receive a 413 error |
-| `body.timeout` | `BODY_TIMEOUT` | number | `30000` (30 s) | Body parsing timeout in milliseconds. Requests exceeding this receive a 408 error |
+| Config Key      | Env Variable    | Type   | Default            | Description                                                                       |
+| --------------- | --------------- | ------ | ------------------ | --------------------------------------------------------------------------------- |
+| `body.max_size` | `BODY_MAX_SIZE` | number | `10485760` (10 MB) | Maximum request body size in bytes. Requests exceeding this receive a 413 error   |
+| `body.timeout`  | `BODY_TIMEOUT`  | number | `30000` (30 s)     | Body parsing timeout in milliseconds. Requests exceeding this receive a 408 error |
 
 ### LLM configuration (feature as parent, LLM inside each feature)
 
@@ -84,31 +94,31 @@ Tejas uses a **feature-as-parent** pattern: each feature that needs an LLM has i
 
 These options configure the `tejas generate:docs` CLI command and the auto-documentation system. The **`docs.llm`** block is the LLM configuration for this feature. See [Auto-Documentation](./auto-docs.md) for full details.
 
-| Config Key | Env Variable | Type | Default | Description |
-|------------|-------------|------|---------|-------------|
-| `docs.dirTargets` | `DOCS_DIR_TARGETS` | string | `"targets"` | Target directory for doc generation (can differ from `dir.targets`) |
-| `docs.output` | — | string | `"./openapi.json"` | Output path for the generated OpenAPI spec |
-| `docs.title` | — | string | `"API"` | API title in the OpenAPI `info` block |
-| `docs.version` | — | string | `"1.0.0"` | API version in the OpenAPI `info` block |
-| `docs.description` | — | string | `""` | API description |
-| `docs.level` | — | number | `1` | LLM enhancement level (1–3). Higher = better docs, more tokens |
-| `docs.llm.baseURL` | `DOCS_LLM_BASE_URL` or `LLM_BASE_URL` | string | `"https://api.openai.com/v1"` | LLM provider endpoint for auto-docs |
-| `docs.llm.apiKey` | `DOCS_LLM_API_KEY` or `LLM_API_KEY` | string | — | LLM provider API key for auto-docs |
-| `docs.llm.model` | `DOCS_LLM_MODEL` or `LLM_MODEL` | string | `"gpt-4o-mini"` | LLM model for auto-docs |
-| `docs.overviewPath` | — | string | `"./API_OVERVIEW.md"` | Path for the generated overview page (level 3 only) |
-| `docs.productionBranch` | `DOCS_PRODUCTION_BRANCH` | string | `"main"` | Git branch that triggers `docs:on-push` |
+| Config Key              | Env Variable                          | Type   | Default                       | Description                                                         |
+| ----------------------- | ------------------------------------- | ------ | ----------------------------- | ------------------------------------------------------------------- |
+| `docs.dirTargets`       | `DOCS_DIR_TARGETS`                    | string | `"targets"`                   | Target directory for doc generation (can differ from `dir.targets`) |
+| `docs.output`           | —                                     | string | `"./openapi.json"`            | Output path for the generated OpenAPI spec                          |
+| `docs.title`            | —                                     | string | `"API"`                       | API title in the OpenAPI `info` block                               |
+| `docs.version`          | —                                     | string | `"1.0.0"`                     | API version in the OpenAPI `info` block                             |
+| `docs.description`      | —                                     | string | `""`                          | API description                                                     |
+| `docs.level`            | —                                     | number | `1`                           | LLM enhancement level (1–3). Higher = better docs, more tokens      |
+| `docs.llm.baseURL`      | `DOCS_LLM_BASE_URL` or `LLM_BASE_URL` | string | `"https://api.openai.com/v1"` | LLM provider endpoint for auto-docs                                 |
+| `docs.llm.apiKey`       | `DOCS_LLM_API_KEY` or `LLM_API_KEY`   | string | —                             | LLM provider API key for auto-docs                                  |
+| `docs.llm.model`        | `DOCS_LLM_MODEL` or `LLM_MODEL`       | string | `"gpt-4o-mini"`               | LLM model for auto-docs                                             |
+| `docs.overviewPath`     | —                                     | string | `"./API_OVERVIEW.md"`         | Path for the generated overview page (level 3 only)                 |
+| `docs.productionBranch` | `DOCS_PRODUCTION_BRANCH`              | string | `"main"`                      | Git branch that triggers `docs:on-push`                             |
 
 ### Error handling (LLM-inferred errors)
 
 When [LLM-inferred error codes and messages](./error-handling.md#llm-inferred-errors) are enabled, the **`errors.llm`** block configures the LLM used for inferring status code and message when you call `ammo.throw()` without explicit code or message. Unset values fall back to `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. You can also enable (and optionally set connection options) by calling **`app.withLLMErrors(config?)`** before `takeoff()` — e.g. `app.withLLMErrors()` to use env/config for baseURL, apiKey, model, or `app.withLLMErrors({ baseURL, apiKey, model, messageType })` to override in code.
 
-| Config Key | Env Variable | Type | Default | Description |
-|------------|-------------|------|---------|-------------|
-| `errors.llm.enabled` | `ERRORS_LLM_ENABLED` or `LLM_*` (for connection) | boolean | `false` | Enable LLM-inferred error code and message for `ammo.throw()` |
-| `errors.llm.baseURL` | `ERRORS_LLM_BASE_URL` or `LLM_BASE_URL` | string | `"https://api.openai.com/v1"` | LLM provider endpoint for error inference |
-| `errors.llm.apiKey` | `ERRORS_LLM_API_KEY` or `LLM_API_KEY` | string | — | LLM provider API key for error inference |
-| `errors.llm.model` | `ERRORS_LLM_MODEL` or `LLM_MODEL` | string | `"gpt-4o-mini"` | LLM model for error inference |
-| `errors.llm.messageType` | `ERRORS_LLM_MESSAGE_TYPE` or `LLM_MESSAGE_TYPE` | `"endUser"` \| `"developer"` | `"endUser"` | Default tone for LLM-generated message: `endUser` (safe for clients) or `developer` (technical detail). Overridable per `ammo.throw()` call. |
+| Config Key               | Env Variable                                     | Type                         | Default                       | Description                                                                                                                                  |
+| ------------------------ | ------------------------------------------------ | ---------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `errors.llm.enabled`     | `ERRORS_LLM_ENABLED` or `LLM_*` (for connection) | boolean                      | `false`                       | Enable LLM-inferred error code and message for `ammo.throw()`                                                                                |
+| `errors.llm.baseURL`     | `ERRORS_LLM_BASE_URL` or `LLM_BASE_URL`          | string                       | `"https://api.openai.com/v1"` | LLM provider endpoint for error inference                                                                                                    |
+| `errors.llm.apiKey`      | `ERRORS_LLM_API_KEY` or `LLM_API_KEY`            | string                       | —                             | LLM provider API key for error inference                                                                                                     |
+| `errors.llm.model`       | `ERRORS_LLM_MODEL` or `LLM_MODEL`                | string                       | `"gpt-4o-mini"`               | LLM model for error inference                                                                                                                |
+| `errors.llm.messageType` | `ERRORS_LLM_MESSAGE_TYPE` or `LLM_MESSAGE_TYPE`  | `"endUser"` \| `"developer"` | `"endUser"`                   | Default tone for LLM-generated message: `endUser` (safe for clients) or `developer` (technical detail). Overridable per `ammo.throw()` call. |
 
 When enabled, the same behaviour applies whether you call `ammo.throw()` or the framework calls it when it catches an error — one mechanism, no separate config.
 
@@ -126,6 +136,11 @@ Create a `tejas.config.json` in your project root:
   "log": {
     "http_requests": true,
     "exceptions": true
+  },
+  "response": {
+    "envelopeEnabled": true,
+    "successKey": "data",
+    "errorKey": "error"
   },
   "body": {
     "max_size": 5242880,
@@ -164,6 +179,11 @@ PORT=3000
 # Logging
 LOG_HTTP_REQUESTS=true
 LOG_EXCEPTIONS=true
+
+# Response envelope (default: enabled; 2xx → { data }, 4xx/5xx → { error })
+# RESPONSE_ENVELOPE_ENABLED=true
+# RESPONSE_SUCCESSKEY=data
+# RESPONSE_ERRORKEY=error
 
 # Body limits
 BODY_MAX_SIZE=5242880
@@ -204,12 +224,12 @@ const app = new Tejas({
   port: 3000,
   log: {
     http_requests: true,
-    exceptions: true
+    exceptions: true,
   },
   body: {
     max_size: 10 * 1024 * 1024,
-    timeout: 30000
-  }
+    timeout: 30000,
+  },
 });
 ```
 
@@ -239,7 +259,7 @@ import { env } from 'tej-env';
 target.register('/info', (ammo) => {
   ammo.fire({
     port: env('PORT'),
-    maxBodySize: env('BODY_MAX_SIZE')
+    maxBodySize: env('BODY_MAX_SIZE'),
   });
 });
 ```
@@ -274,7 +294,7 @@ Database connections are configured via `takeoff()` options, not through the con
 ```javascript
 app.takeoff({
   withRedis: { url: 'redis://localhost:6379' },
-  withMongo: { uri: 'mongodb://localhost:27017/myapp' }
+  withMongo: { uri: 'mongodb://localhost:27017/myapp' },
 });
 ```
 

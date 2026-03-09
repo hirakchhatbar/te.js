@@ -123,16 +123,36 @@ ammo.fire('Hello, World!');
 ammo.fire(200, '<h1>Hello</h1>', 'text/html');
 ```
 
+**Response structure (default, recommended)**
+
+Tejas wraps responses in a consistent envelope so clients always get the same shape. This is **enabled by default** and applies to every `fire()` call (and to `ammo.throw()`, `ammo.unauthorized()`, and other error methods, since they use `fire()` internally):
+
+```javascript
+ammo.fire(200, { id: 1, name: 'Alice' });
+// Wire: { "data": { "id": 1, "name": "Alice" } }
+
+ammo.fire(400, 'Email is required');
+// Wire: { "error": "Email is required" }
+```
+
+- **2xx** → body is wrapped as `{ data: <payload> }`
+- **4xx/5xx** → body is wrapped as `{ error: <message> }`
+- **204** and **3xx** (e.g. redirects) → no wrapping
+
+You can disable wrapping or customize the keys (`data` / `error`) via the [response config](./configuration.md#response-structure) in `tejas.config.json` or environment variables.
+
 **All signatures:**
 
-| Call | Status | Body | Content-Type |
-|------|--------|------|-------------|
+| Call | Status | Wire Body | Content-Type |
+|------|--------|-----------|-------------|
 | `fire()` | 204 | *(empty)* | — |
-| `fire("text")` | 200 | `text` | `text/plain` |
-| `fire({ json })` | 200 | JSON string | `application/json` |
-| `fire(201)` | 201 | status message | `text/plain` |
-| `fire(201, data)` | 201 | `data` | auto-detected |
-| `fire(200, html, "text/html")` | 200 | `html` | `text/html` |
+| `fire("text")` | 200 | `{ "data": "text" }` | `application/json` |
+| `fire({ json })` | 200 | `{ "data": { ... } }` | `application/json` |
+| `fire(201)` | 201 | `{ "data": "<status message>" }` | `application/json` |
+| `fire(201, data)` | 201 | `{ "data": <data> }` | `application/json` |
+| `fire(200, html, "text/html")` | 200 | `html` *(no envelope)* | `text/html` |
+
+When response structure is disabled, the Body column matches what you pass (no envelope). The table above reflects the default behaviour.
 
 After `fire()` is called, the sent data is available as `ammo.dispatchedData`.
 
@@ -243,8 +263,8 @@ import { Target, TejError } from 'te.js';
 
 const users = new Target('/users');
 
-// GET /users - List all
-// POST /users - Create new
+// GET /users - List all  → { "data": { users, page, limit } }
+// POST /users - Create new → { "data": user }
 users.register('/', async (ammo) => {
   if (ammo.GET) {
     const { page = 1, limit = 10 } = ammo.payload;
@@ -256,7 +276,7 @@ users.register('/', async (ammo) => {
     const { name, email } = ammo.payload;
     
     if (!name || !email) {
-      throw new TejError(400, 'Name and email are required');
+      throw new TejError(400, 'Name and email are required'); // → { "error": "..." }
     }
     
     const user = await createUser({ name, email });
@@ -266,15 +286,15 @@ users.register('/', async (ammo) => {
   ammo.notAllowed();
 });
 
-// GET /users/:id - Get one
-// PUT /users/:id - Update
-// DELETE /users/:id - Delete
+// GET /users/:id - Get one → { "data": user }
+// PUT /users/:id - Update → { "data": user }
+// DELETE /users/:id - Delete → 204 (no body)
 users.register('/:id', async (ammo) => {
   const { id } = ammo.payload;
   
   if (ammo.GET) {
     const user = await getUser(id);
-    if (!user) throw new TejError(404, 'User not found');
+    if (!user) throw new TejError(404, 'User not found'); // → { "error": "User not found" }
     return ammo.fire(user);
   }
   
