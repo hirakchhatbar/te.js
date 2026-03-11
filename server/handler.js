@@ -165,7 +165,8 @@ const handler = async (req, res) => {
         }
       }
 
-      // Add route parameters to ammo.payload
+      // Add route parameters to ammo.params and ammo.payload
+      ammo.params = match.params || {};
       if (match.params && Object.keys(match.params).length > 0) {
         Object.assign(ammo.payload, match.params);
       }

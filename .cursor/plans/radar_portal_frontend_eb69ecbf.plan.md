@@ -361,22 +361,22 @@ todos:
     status: pending
   - id: settings
     content: '--- Page: Settings (/settings) ---'
-    status: pending
+    status: completed
   - id: settings-route
     content: 'Settings: route; useApiKeys(), useTeam() hooks'
-    status: pending
+    status: completed
   - id: settings-api-keys
     content: 'Settings: API keys section — list keys (name, prefix, created, last used), create key (show full key once), revoke with confirmation; keys are account-level, one key works across all te.js projects'
-    status: pending
+    status: completed
   - id: settings-team
     content: 'Settings: team section — invite member by email, role selector (admin/member/viewer), remove member'
-    status: pending
+    status: completed
   - id: settings-account
     content: 'Settings: account section — display name, email, password change'
-    status: pending
+    status: completed
   - id: settings-states
     content: 'Settings: Skeleton, ErrorPanel; destructive actions require confirmation dialog; Sonner toasts'
-    status: pending
+    status: completed
   - id: billing
     content: '--- Page: Billing (/settings/billing) ---'
     status: pending
