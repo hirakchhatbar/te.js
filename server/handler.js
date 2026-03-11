@@ -112,7 +112,8 @@ const executeChain = async (target, ammo) => {
  * @returns {Promise<void>}
  */
 const errorHandler = async (ammo, err) => {
-  if (env('LOG_EXCEPTIONS')) errorLogger.error(err);
+  // Pass false as second arg to suppress tej-logger's Console.trace() double-stack output.
+  if (env('LOG_EXCEPTIONS')) errorLogger.error(err, false);
 
   const result = ammo.throw(err);
   if (result != null && typeof result.then === 'function') {

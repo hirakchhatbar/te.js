@@ -10,6 +10,11 @@ import TejError from './error.js';
 import { getErrorsLlmConfig } from '../utils/errors-llm-config.js';
 import { inferErrorFromContext } from './errors/llm-error-service.js';
 import { captureCodeContext } from './errors/code-context.js';
+import {
+  getChannels,
+  buildPayload,
+  dispatchToChannels,
+} from './errors/channels/index.js';
 
 /**
  * Detect if the value is a throw() options object (per-call overrides).
@@ -367,22 +372,84 @@ class Ammo {
     const llmEligible =
       args.length === 0 ||
       (!isStatusCode(args[0]) && !(args[0] instanceof TejError));
-    let throwOpts = /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } | null} */ (null);
-    if (llmEligible && args.length > 0 && isThrowOptions(args[args.length - 1])) {
-      throwOpts = /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } } */ (args.pop());
+    let throwOpts =
+      /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } | null} */ (
+        null
+      );
+    if (
+      llmEligible &&
+      args.length > 0 &&
+      isThrowOptions(args[args.length - 1])
+    ) {
+      throwOpts =
+        /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } } */ (
+          args.pop()
+        );
     }
 
-    const useLlm =
-      llmEnabled &&
-      llmEligible &&
-      throwOpts?.useLlm !== false;
+    const useLlm = llmEnabled && llmEligible && throwOpts?.useLlm !== false;
 
     if (useLlm) {
-      // Use stack from thrown error when available (e.g. handler caught and called ammo.throw(err)) so we capture user code; else current call site.
+      // Capture the stack string SYNCHRONOUSLY before any async work or fire() call,
+      // because the call stack unwinds as soon as we await or respond.
       const stack =
         args[0] instanceof Error && args[0].stack
           ? args[0].stack
           : new Error().stack;
+      const originalError =
+        args[0] !== undefined && args[0] !== null ? args[0] : undefined;
+
+      const { mode, channel, logFile } = getErrorsLlmConfig();
+
+      if (mode === 'async') {
+        // Respond immediately with a generic 500, then run LLM in the background.
+        this.fire(500, 'Internal Server Error');
+
+        // Fire-and-forget: capture context, call LLM, dispatch to channel.
+        const method = this.method;
+        const path = this.path;
+        captureCodeContext(stack)
+          .then((codeContext) => {
+            const context = {
+              codeContext,
+              method,
+              path,
+              // Always request devInsight in async mode — it goes to the channel, not the HTTP response.
+              includeDevInsight: true,
+              forceDevInsight: true,
+              ...(throwOpts?.messageType && {
+                messageType: throwOpts.messageType,
+              }),
+            };
+            if (originalError !== undefined) context.error = originalError;
+            return inferErrorFromContext(context).then((result) => ({
+              result,
+              codeContext,
+            }));
+          })
+          .then(({ result, codeContext }) => {
+            const channels = getChannels(channel, logFile);
+            const payload = buildPayload({
+              method,
+              path,
+              originalError,
+              codeContext,
+              statusCode: result.statusCode,
+              message: result.message,
+              devInsight: result.devInsight,
+              cached: result.cached,
+              rateLimited: result.rateLimited,
+            });
+            return dispatchToChannels(channels, payload);
+          })
+          .catch(() => {
+            // Swallow background errors — the HTTP response has already been sent.
+          });
+
+        return;
+      }
+
+      // Sync mode (default): block until LLM responds, then fire.
       return captureCodeContext(stack)
         .then((codeContext) => {
           const context = {
@@ -390,9 +457,11 @@ class Ammo {
             method: this.method,
             path: this.path,
             includeDevInsight: true,
-            ...(throwOpts?.messageType && { messageType: throwOpts.messageType }),
+            ...(throwOpts?.messageType && {
+              messageType: throwOpts.messageType,
+            }),
           };
-          if (args[0] !== undefined && args[0] !== null) context.error = args[0];
+          if (originalError !== undefined) context.error = originalError;
           return inferErrorFromContext(context);
         })
         .then(({ statusCode, message, devInsight }) => {
@@ -402,6 +471,11 @@ class Ammo {
               ? { message, _dev: devInsight }
               : message;
           this.fire(statusCode, data);
+        })
+        .catch(() => {
+          // LLM call failed (network error, timeout, etc.) — fall back to generic 500
+          // so the client always gets a response and we don't trigger an infinite retry loop.
+          this.fire(500, 'Internal Server Error');
         });
     }
 
