@@ -110,15 +110,22 @@ These options configure the `tejas generate:docs` CLI command and the auto-docum
 
 ### Error handling (LLM-inferred errors)
 
-When [LLM-inferred error codes and messages](./error-handling.md#llm-inferred-errors) are enabled, the **`errors.llm`** block configures the LLM used for inferring status code and message when you call `ammo.throw()` without explicit code or message. Unset values fall back to `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. You can also enable (and optionally set connection options) by calling **`app.withLLMErrors(config?)`** before `takeoff()` — e.g. `app.withLLMErrors()` to use env/config for baseURL, apiKey, model, or `app.withLLMErrors({ baseURL, apiKey, model, messageType })` to override in code.
+When [LLM-inferred error codes and messages](./error-handling.md#llm-inferred-errors) are enabled, the **`errors.llm`** block configures the LLM used for inferring status code and message when you call `ammo.throw()` without explicit code or message. Unset values fall back to `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. You can also enable (and optionally set connection options) by calling **`app.withLLMErrors(config?)`** before `takeoff()` — e.g. `app.withLLMErrors()` to use env/config for baseURL, apiKey, model, or `app.withLLMErrors({ baseURL, apiKey, model, messageType, mode, ... })` to override in code.
 
-| Config Key               | Env Variable                                     | Type                         | Default                       | Description                                                                                                                                  |
-| ------------------------ | ------------------------------------------------ | ---------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `errors.llm.enabled`     | `ERRORS_LLM_ENABLED` or `LLM_*` (for connection) | boolean                      | `false`                       | Enable LLM-inferred error code and message for `ammo.throw()`                                                                                |
-| `errors.llm.baseURL`     | `ERRORS_LLM_BASE_URL` or `LLM_BASE_URL`          | string                       | `"https://api.openai.com/v1"` | LLM provider endpoint for error inference                                                                                                    |
-| `errors.llm.apiKey`      | `ERRORS_LLM_API_KEY` or `LLM_API_KEY`            | string                       | —                             | LLM provider API key for error inference                                                                                                     |
-| `errors.llm.model`       | `ERRORS_LLM_MODEL` or `LLM_MODEL`                | string                       | `"gpt-4o-mini"`               | LLM model for error inference                                                                                                                |
-| `errors.llm.messageType` | `ERRORS_LLM_MESSAGE_TYPE` or `LLM_MESSAGE_TYPE`  | `"endUser"` \| `"developer"` | `"endUser"`                   | Default tone for LLM-generated message: `endUser` (safe for clients) or `developer` (technical detail). Overridable per `ammo.throw()` call. |
+| Config Key               | Env Variable                                    | Type                               | Default              | Description                                                                                                                                                                                                          |
+| ------------------------ | ----------------------------------------------- | ---------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `errors.llm.enabled`     | `ERRORS_LLM_ENABLED`                            | boolean                            | `false`              | Enable LLM-inferred error code and message for `ammo.throw()` and framework-caught errors.                                                                                                                           |
+| `errors.llm.baseURL`     | `ERRORS_LLM_BASE_URL` or `LLM_BASE_URL`         | string                             | —                    | LLM provider endpoint (e.g. `https://api.openai.com/v1`). Required when enabled.                                                                                                                                     |
+| `errors.llm.apiKey`      | `ERRORS_LLM_API_KEY` or `LLM_API_KEY`           | string                             | —                    | LLM provider API key. Required when enabled.                                                                                                                                                                         |
+| `errors.llm.model`       | `ERRORS_LLM_MODEL` or `LLM_MODEL`               | string                             | —                    | LLM model name (e.g. `gpt-4o-mini`). Required when enabled.                                                                                                                                                          |
+| `errors.llm.messageType` | `ERRORS_LLM_MESSAGE_TYPE` or `LLM_MESSAGE_TYPE` | `"endUser"` \| `"developer"`       | `"endUser"`          | Default tone for LLM-generated messages. `endUser` is safe for clients; `developer` includes technical detail. Overridable per `ammo.throw()` call.                                                                  |
+| `errors.llm.mode`        | `ERRORS_LLM_MODE` or `LLM_MODE`                 | `"sync"` \| `"async"`              | `"sync"`             | `sync` blocks the HTTP response until the LLM returns. `async` sends an immediate 500 and runs the LLM in the background, dispatching the result to the configured channel.                                          |
+| `errors.llm.timeout`     | `ERRORS_LLM_TIMEOUT` or `LLM_TIMEOUT`           | number (ms)                        | `10000`              | Maximum time in milliseconds to wait for an LLM response before aborting with a timeout error.                                                                                                                       |
+| `errors.llm.channel`     | `ERRORS_LLM_CHANNEL` or `LLM_CHANNEL`           | `"console"` \| `"log"` \| `"both"` | `"console"`          | Output channel for async mode results. `console` pretty-prints to the terminal; `log` appends JSONL to the log file; `both` does both. Only applies when `mode` is `async`.                                          |
+| `errors.llm.logFile`     | `ERRORS_LLM_LOG_FILE`                           | string (path)                      | `"./errors.llm.log"` | Path for the JSONL log file used by the `log` and `both` channels.                                                                                                                                                   |
+| `errors.llm.rateLimit`   | `ERRORS_LLM_RATE_LIMIT` or `LLM_RATE_LIMIT`     | number                             | `10`                 | Maximum number of LLM calls allowed per minute across all requests. When exceeded, a generic 500 is returned (sync) or dispatched with a `rateLimited` flag (async). Cached results do not count against this limit. |
+| `errors.llm.cache`       | `ERRORS_LLM_CACHE`                              | boolean                            | `true`               | Cache LLM results by throw site (file + line) and error message. Repeated errors at the same location reuse the cached result without making another LLM call.                                                       |
+| `errors.llm.cacheTTL`    | `ERRORS_LLM_CACHE_TTL`                          | number (ms)                        | `3600000`            | How long cached results are reused (default 1 hour). After expiry the same error will trigger a fresh LLM call.                                                                                                      |
 
 When enabled, the same behaviour applies whether you call `ammo.throw()` or the framework calls it when it catches an error — one mechanism, no separate config.
 
@@ -162,7 +169,14 @@ Create a `tejas.config.json` in your project root:
       "enabled": true,
       "baseURL": "https://api.openai.com/v1",
       "model": "gpt-4o-mini",
-      "messageType": "endUser"
+      "messageType": "endUser",
+      "mode": "async",
+      "timeout": 10000,
+      "channel": "both",
+      "logFile": "./errors.llm.log",
+      "rateLimit": 10,
+      "cache": true,
+      "cacheTTL": 3600000
     }
   }
 }

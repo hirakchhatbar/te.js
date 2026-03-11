@@ -94,14 +94,14 @@ class TargetRegistry {
     const patternSegments = pattern.split('/').filter((s) => s.length > 0);
     const urlSegments = url.split('/').filter((s) => s.length > 0);
 
-    // Must have same number of segments
-    if (patternSegments.length !== urlSegments.length) {
-      return null;
-    }
-
     // If both are empty (root paths), they match
     if (patternSegments.length === 0 && urlSegments.length === 0) {
       return {};
+    }
+
+    // Must have same number of segments
+    if (patternSegments.length !== urlSegments.length) {
+      return null;
     }
 
     const params = {};
@@ -133,7 +133,7 @@ class TargetRegistry {
    */
   getAllEndpoints(options = {}) {
     const grouped =
-      typeof options === 'boolean' ? options : (options && options.grouped);
+      typeof options === 'boolean' ? options : options && options.grouped;
     const detailed =
       typeof options === 'object' && options && options.detailed === true;
 

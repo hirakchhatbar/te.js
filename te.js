@@ -10,7 +10,10 @@ import dbManager from './database/index.js';
 import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
 import targetHandler from './server/handler.js';
-import { getErrorsLlmConfig, validateErrorsLlmAtTakeoff } from './utils/errors-llm-config.js';
+import {
+  getErrorsLlmConfig,
+  validateErrorsLlmAtTakeoff,
+} from './utils/errors-llm-config.js';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
@@ -133,10 +136,9 @@ class Tejas {
               ? path.join(parentPath, file.name)
               : path.join(baseDir, parentPath, file.name);
             const relativePath = path.relative(baseDir, fullPath);
-            const groupId = relativePath
-              .replace(/\.target\.js$/i, '')
-              .replace(/\\/g, '/')
-              || 'index';
+            const groupId =
+              relativePath.replace(/\.target\.js$/i, '').replace(/\\/g, '/') ||
+              'index';
             targetRegistry.setCurrentSourceGroup(groupId);
             try {
               await import(pathToFileURL(fullPath).href);
@@ -305,14 +307,21 @@ class Tejas {
 
   /**
    * Enables LLM-inferred error codes and messages for ammo.throw() and framework-caught errors.
-   * Call before takeoff(). Remaining options (baseURL, apiKey, model, messageType) can come from
-   * config, or from env/tejas.config.json (LLM_* / ERRORS_LLM_*). Validation runs at takeoff.
+   * Call before takeoff(). Remaining options can come from env/tejas.config.json (LLM_* / ERRORS_LLM_*).
+   * Validation runs at takeoff.
    *
    * @param {Object} [config] - Optional errors.llm overrides
    * @param {string} [config.baseURL] - LLM provider endpoint (e.g. https://api.openai.com/v1)
    * @param {string} [config.apiKey] - LLM provider API key
    * @param {string} [config.model] - Model name (e.g. gpt-4o-mini)
    * @param {'endUser'|'developer'} [config.messageType] - Default message tone
+   * @param {'sync'|'async'} [config.mode] - 'sync' blocks the response until LLM returns (default); 'async' responds immediately with 500 and dispatches LLM result to a channel
+   * @param {number} [config.timeout] - LLM fetch timeout in milliseconds (default 10000)
+   * @param {'console'|'log'|'both'} [config.channel] - Output channel for async mode results (default 'console')
+   * @param {string} [config.logFile] - Path to JSONL log file used by 'log' and 'both' channels (default './errors.llm.log')
+   * @param {number} [config.rateLimit] - Max LLM calls per minute across all requests (default 10)
+   * @param {boolean} [config.cache] - Cache LLM results by throw site + error message to avoid repeated calls (default true)
+   * @param {number} [config.cacheTTL] - How long cached results are reused in milliseconds (default 3600000 = 1 hour)
    * @returns {Tejas} The Tejas instance for chaining
    *
    * @example
@@ -322,6 +331,10 @@ class Tejas {
    * @example
    * app.withLLMErrors({ baseURL: 'https://api.openai.com/v1', apiKey: process.env.OPENAI_KEY, model: 'gpt-4o-mini' });
    * app.takeoff();
+   *
+   * @example
+   * app.withLLMErrors({ mode: 'async', channel: 'both', rateLimit: 20 });
+   * app.takeoff();
    */
   withLLMErrors(config) {
     setEnv('ERRORS_LLM_ENABLED', true);
@@ -329,7 +342,17 @@ class Tejas {
       if (config.baseURL != null) setEnv('ERRORS_LLM_BASE_URL', config.baseURL);
       if (config.apiKey != null) setEnv('ERRORS_LLM_API_KEY', config.apiKey);
       if (config.model != null) setEnv('ERRORS_LLM_MODEL', config.model);
-      if (config.messageType != null) setEnv('ERRORS_LLM_MESSAGE_TYPE', config.messageType);
+      if (config.messageType != null)
+        setEnv('ERRORS_LLM_MESSAGE_TYPE', config.messageType);
+      if (config.mode != null) setEnv('ERRORS_LLM_MODE', config.mode);
+      if (config.timeout != null) setEnv('ERRORS_LLM_TIMEOUT', config.timeout);
+      if (config.channel != null) setEnv('ERRORS_LLM_CHANNEL', config.channel);
+      if (config.logFile != null) setEnv('ERRORS_LLM_LOG_FILE', config.logFile);
+      if (config.rateLimit != null)
+        setEnv('ERRORS_LLM_RATE_LIMIT', config.rateLimit);
+      if (config.cache != null) setEnv('ERRORS_LLM_CACHE', config.cache);
+      if (config.cacheTTL != null)
+        setEnv('ERRORS_LLM_CACHE_TTL', config.cacheTTL);
     }
     return this;
   }
@@ -401,16 +424,21 @@ class Tejas {
    * app.takeoff();
    */
   serveDocs(config = {}) {
-    const specPath = path.resolve(process.cwd(), config.specPath || './openapi.json');
+    const specPath = path.resolve(
+      process.cwd(),
+      config.specPath || './openapi.json',
+    );
     const { scalarConfig } = config;
     const getSpec = async () => {
       const content = await readFile(specPath, 'utf8');
       return JSON.parse(content);
     };
-    registerDocRoutes({ getSpec, specUrl: '/docs/openapi.json', scalarConfig }, targetRegistry);
+    registerDocRoutes(
+      { getSpec, specUrl: '/docs/openapi.json', scalarConfig },
+      targetRegistry,
+    );
     return this;
   }
-
 }
 
 const listAllEndpoints = (grouped = false) => {

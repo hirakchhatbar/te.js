@@ -112,7 +112,8 @@ const executeChain = async (target, ammo) => {
  * @returns {Promise<void>}
  */
 const errorHandler = async (ammo, err) => {
-  if (env('LOG_EXCEPTIONS')) errorLogger.error(err);
+  // Pass false as second arg to suppress tej-logger's Console.trace() double-stack output.
+  if (env('LOG_EXCEPTIONS')) errorLogger.error(err, false);
 
   const result = ammo.throw(err);
   if (result != null && typeof result.then === 'function') {
@@ -165,7 +166,8 @@ const handler = async (req, res) => {
         }
       }
 
-      // Add route parameters to ammo.payload
+      // Add route parameters to ammo.params and ammo.payload
+      ammo.params = match.params || {};
       if (match.params && Object.keys(match.params).length > 0) {
         Object.assign(ammo.payload, match.params);
       }

@@ -3,11 +3,15 @@
  * returns statusCode and message (and optionally devInsight in non-production).
  * Uses shared lib/llm with errors.llm config. Developers do not pass an error object;
  * the LLM infers from the code where ammo.throw() was called.
+ *
+ * Flow: cache check -> rate limit check -> LLM call -> record rate -> store cache -> return.
  */
 
 import { createProvider } from '../../lib/llm/index.js';
 import { extractJSON } from '../../lib/llm/parse.js';
 import { getErrorsLlmConfig } from '../../utils/errors-llm-config.js';
+import { getRateLimiter } from './llm-rate-limiter.js';
+import { getCache } from './llm-cache.js';
 
 const DEFAULT_STATUS = 500;
 const DEFAULT_MESSAGE = 'Internal Server Error';
@@ -24,7 +28,8 @@ const DEFAULT_MESSAGE = 'Internal Server Error';
  * @returns {string}
  */
 function buildPrompt(context) {
-  const { codeContext, method, path, includeDevInsight, messageType, error } = context;
+  const { codeContext, method, path, includeDevInsight, messageType, error } =
+    context;
   const forDeveloper = messageType === 'developer';
 
   const requestPart = [method, path].filter(Boolean).length
@@ -35,7 +40,10 @@ function buildPrompt(context) {
   if (codeContext?.snippets?.length) {
     codePart = codeContext.snippets
       .map((s, i) => {
-        const label = i === 0 ? 'Call site (where ammo.throw() was invoked)' : `Upstream caller ${i}`;
+        const label =
+          i === 0
+            ? 'Call site (where ammo.throw() was invoked)'
+            : `Upstream caller ${i}`;
         return `--- ${label}: ${s.file} (line ${s.line}) ---\n${s.snippet}`;
       })
       .join('\n\n');
@@ -80,26 +88,64 @@ JSON:`;
 
 /**
  * Infer HTTP statusCode and message (and optionally devInsight) from code context using the LLM.
- * Uses errors.llm config (getErrorsLlmConfig). Call only when errors.llm.enabled is true and config is valid.
- * The primary input is codeContext (surrounding + upstream/downstream snippets); error is optional.
+ * Checks cache first, then rate limit. On success stores result in cache.
  *
  * @param {object} context - Context for the prompt.
- * @param {{ snippets: Array<{ file: string, line: number, snippet: string }> }} context.codeContext - Source snippets with line numbers (from captureCodeContext).
- * @param {string} [context.method] - HTTP method.
- * @param {string} [context.path] - Request path.
- * @param {boolean} [context.includeDevInsight] - In non-production, dev insight is included by default; set to false to disable.
- * @param {'endUser'|'developer'} [context.messageType] - Override config: 'endUser' or 'developer'. Default from errors.llm.messageType.
- * @param {string|Error|undefined} [context.error] - Optional error if the caller passed one (secondary signal).
- * @returns {Promise<{ statusCode: number, message: string, devInsight?: string }>}
+ * @param {{ snippets: Array<{ file: string, line: number, snippet: string }> }} context.codeContext
+ * @param {string} [context.method]
+ * @param {string} [context.path]
+ * @param {boolean} [context.includeDevInsight]
+ * @param {'endUser'|'developer'} [context.messageType]
+ * @param {string|Error|undefined} [context.error]
+ * @returns {Promise<{ statusCode: number, message: string, devInsight?: string, cached?: boolean, rateLimited?: boolean }>}
  */
 export async function inferErrorFromContext(context) {
   const config = getErrorsLlmConfig();
-  const { baseURL, apiKey, model, messageType: configMessageType } = config;
-  const provider = createProvider({ baseURL, apiKey, model });
+  const {
+    baseURL,
+    apiKey,
+    model,
+    messageType: configMessageType,
+    timeout,
+    rateLimit,
+    cache: cacheEnabled,
+    cacheTTL,
+  } = config;
 
   const isProduction = process.env.NODE_ENV === 'production';
-  const includeDevInsight = !isProduction && context.includeDevInsight !== false;
+  const includeDevInsight =
+    context.includeDevInsight !== false
+      ? context.forceDevInsight
+        ? true
+        : !isProduction
+      : false;
   const messageType = context.messageType ?? configMessageType;
+
+  // 1. Cache check
+  if (cacheEnabled) {
+    const cache = getCache(cacheTTL);
+    const key = cache.buildKey(context.codeContext, context.error);
+    const cached = cache.get(key);
+    if (cached) {
+      return { ...cached, cached: true };
+    }
+  }
+
+  // 2. Rate limit check
+  const limiter = getRateLimiter(rateLimit);
+  if (!limiter.canCall()) {
+    return {
+      statusCode: DEFAULT_STATUS,
+      message: DEFAULT_MESSAGE,
+      ...(includeDevInsight && {
+        devInsight: 'LLM rate limit exceeded — error was not enhanced.',
+      }),
+      rateLimited: true,
+    };
+  }
+
+  // 3. LLM call
+  const provider = createProvider({ baseURL, apiKey, model, timeout });
 
   const prompt = buildPrompt({
     codeContext: context.codeContext,
@@ -111,6 +157,10 @@ export async function inferErrorFromContext(context) {
   });
 
   const { content } = await provider.analyze(prompt);
+
+  // 4. Record the call against the rate limit
+  limiter.record();
+
   const parsed = extractJSON(content);
 
   if (!parsed || typeof parsed !== 'object') {
@@ -132,8 +182,19 @@ export async function inferErrorFromContext(context) {
       : DEFAULT_MESSAGE;
 
   const result = { statusCode, message };
-  if (includeDevInsight && typeof parsed.devInsight === 'string' && parsed.devInsight.trim()) {
+  if (
+    includeDevInsight &&
+    typeof parsed.devInsight === 'string' &&
+    parsed.devInsight.trim()
+  ) {
     result.devInsight = parsed.devInsight.trim();
+  }
+
+  // 5. Store in cache
+  if (cacheEnabled) {
+    const cache = getCache(cacheTTL);
+    const key = cache.buildKey(context.codeContext, context.error);
+    cache.set(key, result);
   }
 
   return result;
