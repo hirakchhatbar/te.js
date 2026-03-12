@@ -3,6 +3,7 @@ import { env, setEnv } from 'tej-env';
 import TejLogger from 'tej-logger';
 import rateLimiter from './rate-limit/index.js';
 import corsMiddleware from './cors/index.js';
+import radarMiddleware from './radar/index.js';
 
 import targetRegistry from './server/targets/registry.js';
 import dbManager from './database/index.js';
@@ -405,6 +406,39 @@ class Tejas {
    */
   withCORS(config = {}) {
     this.midair(corsMiddleware(config));
+    return this;
+  }
+
+  /**
+   * Enables Tejas Radar telemetry — captures HTTP request metrics and forwards
+   * them to a Radar collector for real-time observability.
+   *
+   * All options fall back to environment variables and sensible defaults, so
+   * the minimum viable call is just `app.withRadar({ apiKey: 'rdr_xxx' })`.
+   * The project name is auto-detected from `package.json` if not supplied.
+   *
+   * @param {Object} [config] - Radar configuration
+   * @param {string} [config.collectorUrl]  Collector base URL (default: RADAR_COLLECTOR_URL env or http://localhost:3100)
+   * @param {string} [config.apiKey]        Bearer token `rdr_xxx` (default: RADAR_API_KEY env)
+   * @param {string} [config.projectName]   Project identifier (default: RADAR_PROJECT_NAME env → package.json name → "tejas-app")
+   * @param {number} [config.flushInterval] Milliseconds between periodic flushes (default: 2000)
+   * @param {number} [config.batchSize]     Flush immediately when batch reaches this size (default: 100)
+   * @param {string[]} [config.ignore]      Request paths to skip (default: ['/health'])
+   * @returns {Tejas} The Tejas instance for chaining
+   *
+   * @example
+   * app.withRadar({ apiKey: process.env.RADAR_API_KEY });
+   * app.takeoff();
+   *
+   * @example
+   * app.withRadar({
+   *   collectorUrl: 'https://collector.example.com',
+   *   apiKey: process.env.RADAR_API_KEY,
+   *   projectName: 'my-api',
+   * });
+   */
+  withRadar(config = {}) {
+    this.midair(radarMiddleware(config));
     return this;
   }
 
