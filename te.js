@@ -424,6 +424,34 @@ class Tejas {
    * @param {number} [config.flushInterval] Milliseconds between periodic flushes (default: 2000)
    * @param {number} [config.batchSize]     Flush immediately when batch reaches this size (default: 100)
    * @param {string[]} [config.ignore]      Request paths to skip (default: ['/health'])
+   *
+   * @param {Object}  [config.capture]      Controls what additional data is captured and sent to the collector.
+   *                                         All capture options default to `false` — nothing beyond standard
+   *                                         metrics is sent unless explicitly enabled.
+   * @param {boolean} [config.capture.request=false]
+   *   Capture and send the request body. The body is a shallow copy of parsed
+   *   query params and request body fields merged together. Only JSON-serialisable
+   *   content is sent. The collector applies non-bypassable GDPR field masking
+   *   server-side regardless of this setting.
+   * @param {boolean} [config.capture.response=false]
+   *   Capture and send the response body. The response must be valid JSON;
+   *   non-JSON responses are recorded as `null`. The collector applies
+   *   non-bypassable GDPR field masking server-side.
+   * @param {boolean|string[]} [config.capture.headers=false]
+   *   Capture request headers. Pass `true` to send all headers, or a `string[]`
+   *   allowlist of specific header names to send (e.g. `['content-type', 'x-request-id']`).
+   *   The collector always strips sensitive headers (`authorization`, `cookie`,
+   *   `set-cookie`, `x-api-key`, etc.) server-side regardless of what is sent.
+   *
+   * @param {Object}   [config.mask]        Client-side masking applied to request/response bodies
+   *                                         before data is sent to the collector.
+   * @param {string[]} [config.mask.fields]  Extra field names (case-insensitive) to mask client-side.
+   *                                         Matched field values are replaced with `"*"` before leaving
+   *                                         the process. Use this for application-specific sensitive fields
+   *                                         that are not on the collector's built-in GDPR blocklist.
+   *                                         Note: the collector enforces its own non-bypassable masking
+   *                                         layer server-side regardless of this setting.
+   *
    * @returns {Tejas} The Tejas instance for chaining
    *
    * @example
@@ -435,6 +463,21 @@ class Tejas {
    *   collectorUrl: 'https://collector.example.com',
    *   apiKey: process.env.RADAR_API_KEY,
    *   projectName: 'my-api',
+   * });
+   *
+   * @example
+   * // Capture request/response bodies and selected headers,
+   * // with extra client-side masking for app-specific fields.
+   * app.withRadar({
+   *   apiKey: process.env.RADAR_API_KEY,
+   *   capture: {
+   *     request: true,
+   *     response: true,
+   *     headers: ['content-type', 'x-request-id'],
+   *   },
+   *   mask: {
+   *     fields: ['account_number', 'internal_id'],
+   *   },
    * });
    */
   withRadar(config = {}) {

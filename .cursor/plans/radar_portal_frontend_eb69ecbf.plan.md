@@ -93,7 +93,7 @@ todos:
     content: 'EndpointPill: METHOD /path formatted display'
     status: completed
   - id: shared-duration
-    content: 'DurationDisplay: human-readable duration (0.3ms, 127ms, 2.1s)'
+    content: 'DurationDisplay: human-readable duration (0.30ms, 127ms, 2.10s)'
     status: completed
   - id: shared-empty-state
     content: 'EmptyState: icon + title + description; used when query returns no data'
