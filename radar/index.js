@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import TejLogger from 'tej-logger';
@@ -8,12 +8,14 @@ const logger = new TejLogger('Tejas.Radar');
 /**
  * Attempt to read the `name` field from the nearest package.json at startup.
  * Returns null if the file cannot be read or parsed.
+ * @returns {Promise<string|null>}
  */
-function readPackageJsonName() {
+async function readPackageJsonName() {
   try {
-    const raw = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
+    const raw = await readFile(join(process.cwd(), 'package.json'), 'utf8');
     return JSON.parse(raw).name ?? null;
-  } catch {
+  } catch (err) {
+    logger.warn(`Could not read package.json name: ${err?.message ?? err}`);
     return null;
   }
 }
@@ -36,7 +38,7 @@ function deepMask(value, blocklist) {
     return value.map((item) => deepMask(item, blocklist));
   }
 
-  const result = {};
+  const result = Object.create(null);
   for (const [k, v] of Object.entries(value)) {
     result[k] = blocklist.has(k.toLowerCase()) ? '*' : deepMask(v, blocklist);
   }
@@ -75,7 +77,8 @@ function parseJsonSafe(raw) {
   if (!raw) return null;
   try {
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    logger.warn(`parseJsonSafe: JSON parse failed — ${err?.message ?? err}`);
     return null;
   }
 }
@@ -101,9 +104,9 @@ function parseJsonSafe(raw) {
  *                                            These are merged with the collector's server-side GDPR blocklist.
  *                                            Note: the collector enforces its own non-bypassable masking
  *                                            regardless of this setting.
- * @returns {Function} Middleware function `(ammo, next)`
+ * @returns {Promise<Function>} Middleware function `(ammo, next)`
  */
-function radarMiddleware(config = {}) {
+async function radarMiddleware(config = {}) {
   // RADAR_COLLECTOR_URL is an undocumented internal escape hatch used only
   // during local development. In production, telemetry always goes to the
   // hosted collector and this env var should not be set.
@@ -115,18 +118,18 @@ function radarMiddleware(config = {}) {
   const projectName =
     config.projectName ??
     process.env.RADAR_PROJECT_NAME ??
-    readPackageJsonName() ??
+    (await readPackageJsonName()) ??
     'tejas-app';
 
   const flushInterval = config.flushInterval ?? 2000;
   const batchSize = config.batchSize ?? 100;
   const ignorePaths = new Set(config.ignore ?? ['/health']);
 
-  const capture = {
+  const capture = Object.freeze({
     request: config.capture?.request === true,
     response: config.capture?.response === true,
     headers: config.capture?.headers ?? false,
-  };
+  });
 
   // Build the client-side field blocklist from developer-supplied extra fields.
   // The collector enforces its own non-bypassable GDPR blocklist server-side;
@@ -152,53 +155,51 @@ function radarMiddleware(config = {}) {
 
   logger.info(`Checking Radar connectivity — ${collectorUrl}`);
 
-  fetch(healthUrl)
-    .then((res) => {
-      if (res.ok) {
-        logger.info(`Radar collector reachable at ${collectorUrl}`);
-      } else {
-        logger.warn(
-          `Radar collector responded with ${res.status} on /health — check collector status.`,
-        );
-      }
-    })
-    .catch((err) => {
+  try {
+    const healthRes = await fetch(healthUrl);
+    if (healthRes.ok) {
+      logger.info(`Radar collector reachable at ${collectorUrl}`);
+    } else {
       logger.warn(
-        `Radar collector unreachable at ${collectorUrl}: ${err.message}`,
+        `Radar collector responded with ${healthRes.status} on /health — check collector status.`,
       );
-    });
+    }
+  } catch (err) {
+    logger.warn(
+      `Radar collector unreachable at ${collectorUrl}: ${err.message}`,
+    );
+  }
 
-  function flush() {
+  async function flush() {
     if (batch.length === 0) return;
     const payload = batch;
     batch = [];
 
-    fetch(ingestUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authHeader,
-      },
-      body: JSON.stringify(payload),
-    })
-      .then((res) => {
-        if (res.ok && !connected) {
-          connected = true;
-          logger.info(
-            `Connected — project: "${projectName}", collector: ${collectorUrl}`,
-          );
-        } else if (res.status === 401 && connected) {
-          connected = false;
-          logger.warn('Radar API key rejected by collector.');
-        } else if (res.status === 401) {
-          logger.warn(
-            'Radar API key rejected by collector. Telemetry will not be recorded.',
-          );
-        }
-      })
-      .catch((err) => {
-        logger.warn(`Radar flush failed: ${err.message}`);
+    try {
+      const res = await fetch(ingestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+        body: JSON.stringify(payload),
       });
+      if (res.ok && !connected) {
+        connected = true;
+        logger.info(
+          `Connected — project: "${projectName}", collector: ${collectorUrl}`,
+        );
+      } else if (res.status === 401 && connected) {
+        connected = false;
+        logger.warn('Radar API key rejected by collector.');
+      } else if (res.status === 401) {
+        logger.warn(
+          'Radar API key rejected by collector. Telemetry will not be recorded.',
+        );
+      }
+    } catch (err) {
+      logger.warn(`Radar flush failed: ${err.message}`);
+    }
   }
 
   const timer = setInterval(flush, flushInterval);

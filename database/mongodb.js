@@ -1,7 +1,7 @@
-import { spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import TejLogger from 'tej-logger';
 import TejError from '../server/error.js';
 
@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const logger = new TejLogger('MongoDBConnectionManager');
 
-function checkMongooseInstallation() {
+async function checkMongooseInstallation() {
   const packageJsonPath = path.join(__dirname, '..', 'package.json');
   const nodeModulesPath = path.join(
     __dirname,
@@ -20,12 +20,18 @@ function checkMongooseInstallation() {
   );
 
   try {
-    // Check if mongoose exists in package.json
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const packageJson = JSON.parse(
+      await fs.promises.readFile(packageJsonPath, 'utf8'),
+    );
     const inPackageJson = !!packageJson.dependencies?.mongoose;
 
-    // Check if mongoose exists in node_modules
-    const inNodeModules = fs.existsSync(nodeModulesPath);
+    let inNodeModules = false;
+    try {
+      await fs.promises.access(nodeModulesPath);
+      inNodeModules = true;
+    } catch {
+      inNodeModules = false;
+    }
 
     return {
       needsInstall: !inPackageJson || !inNodeModules,
@@ -94,7 +100,7 @@ function installMongooseSync() {
  * @returns {Promise<mongoose.Connection>} Mongoose connection instance
  */
 async function createConnection(config) {
-  const { needsInstall } = checkMongooseInstallation();
+  const { needsInstall } = await checkMongooseInstallation();
 
   if (needsInstall) {
     const installed = installMongooseSync();
@@ -106,7 +112,7 @@ async function createConnection(config) {
   const { uri, options = {} } = config;
 
   try {
-    const mongoose = await import('mongoose').then((mod) => mod.default);
+    const { default: mongoose } = await import('mongoose');
     const connection = await mongoose.createConnection(uri, options);
 
     connection.on('error', (err) =>

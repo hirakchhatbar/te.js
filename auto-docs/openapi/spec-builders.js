@@ -16,7 +16,12 @@ export function isMethodKeyed(obj) {
   for (const key of Object.keys(obj)) {
     if (METHOD_KEYS.has(key.toLowerCase())) {
       const val = obj[key];
-      if (val && typeof val === 'object' && (val.summary != null || val.response != null)) return true;
+      if (
+        val &&
+        typeof val === 'object' &&
+        (val.summary != null || val.response != null)
+      )
+        return true;
     }
   }
   return false;
@@ -82,7 +87,7 @@ export function getQueryParameters(queryMeta) {
  */
 export function buildSchemaFromMetadata(meta) {
   if (!meta || typeof meta !== 'object') return {};
-  const properties = {};
+  const properties = Object.create(null);
   const required = [];
   for (const [key, value] of Object.entries(meta)) {
     if (value && typeof value === 'object' && value.type) {
@@ -91,7 +96,8 @@ export function buildSchemaFromMetadata(meta) {
         ...(value.description && { description: value.description }),
         ...(value.format && { format: value.format }),
       };
-      if (value.required === true || value.required === 'true') required.push(key);
+      if (value.required === true || value.required === 'true')
+        required.push(key);
     }
   }
   if (Object.keys(properties).length === 0) return {};
@@ -108,7 +114,8 @@ export function buildSchemaFromMetadata(meta) {
  * @returns {object|undefined} OpenAPI requestBody or undefined
  */
 export function buildRequestBody(requestMeta) {
-  if (!requestMeta?.body || typeof requestMeta.body !== 'object') return undefined;
+  if (!requestMeta?.body || typeof requestMeta.body !== 'object')
+    return undefined;
   const schema = buildSchemaFromMetadata(requestMeta.body);
   if (!schema || Object.keys(schema).length === 0) return undefined;
   return {
@@ -127,7 +134,7 @@ export function buildRequestBody(requestMeta) {
  * @returns {object} OpenAPI responses
  */
 export function buildResponses(responseMeta) {
-  const responses = {};
+  const responses = Object.create(null);
   if (!responseMeta || typeof responseMeta !== 'object') {
     responses['200'] = { description: 'Success' };
     return responses;
@@ -139,9 +146,10 @@ export function buildResponses(responseMeta) {
       ...(spec.schema && {
         content: {
           'application/json': {
-            schema: typeof spec.schema === 'object' && spec.schema.type
-              ? spec.schema
-              : { type: 'object' },
+            schema:
+              typeof spec.schema === 'object' && spec.schema.type
+                ? spec.schema
+                : { type: 'object' },
           },
         },
       }),
@@ -159,7 +167,8 @@ export function buildResponses(responseMeta) {
  * @returns {boolean}
  */
 export function isMethodAgnostic(methods) {
-  if (!Array.isArray(methods) || methods.length !== ALL_METHODS.length) return false;
+  if (!Array.isArray(methods) || methods.length !== ALL_METHODS.length)
+    return false;
   const set = new Set(methods.map((m) => m.toUpperCase()));
   return ALL_METHODS.every((m) => set.has(m));
 }
@@ -190,7 +199,10 @@ export function buildOperation(method, meta, pathParams, options = {}) {
   };
   const methodUpper = method.toUpperCase();
   const body = buildRequestBody(meta.request);
-  if (body && (methodAgnostic || (methodUpper !== 'GET' && methodUpper !== 'HEAD'))) {
+  if (
+    body &&
+    (methodAgnostic || (methodUpper !== 'GET' && methodUpper !== 'HEAD'))
+  ) {
     op.requestBody = body;
   }
   op.responses = buildResponses(meta.response);
@@ -207,17 +219,17 @@ export function buildOperation(method, meta, pathParams, options = {}) {
 export function mergeMetadata(explicit, enhanced, options = {}) {
   const preferEnhanced = options.preferEnhanced === true;
   const summary = preferEnhanced
-    ? (enhanced?.summary ?? explicit?.summary ?? '')
-    : (explicit?.summary ?? enhanced?.summary ?? '');
+    ? enhanced?.summary ?? explicit?.summary ?? ''
+    : explicit?.summary ?? enhanced?.summary ?? '';
   const description = preferEnhanced
-    ? (enhanced?.description ?? explicit?.description ?? '')
-    : (explicit?.description ?? enhanced?.description ?? '');
+    ? enhanced?.description ?? explicit?.description ?? ''
+    : explicit?.description ?? enhanced?.description ?? '';
   const request = preferEnhanced
-    ? (enhanced?.request ?? explicit?.request)
-    : (explicit?.request ?? enhanced?.request);
+    ? enhanced?.request ?? explicit?.request
+    : explicit?.request ?? enhanced?.request;
   const response = preferEnhanced
-    ? (enhanced?.response ?? explicit?.response)
-    : (explicit?.response ?? enhanced?.response);
+    ? enhanced?.response ?? explicit?.response
+    : explicit?.response ?? enhanced?.response;
   return {
     summary: summary || 'Endpoint',
     description: description || undefined,
@@ -234,7 +246,15 @@ export function mergeMetadata(explicit, enhanced, options = {}) {
  * @returns {object}
  */
 export function mergeMethodAgnosticMeta(metaByMethod, methods, fallbackMeta) {
-  const preferredOrder = ['post', 'put', 'patch', 'get', 'delete', 'head', 'options'];
+  const preferredOrder = [
+    'post',
+    'put',
+    'patch',
+    'get',
+    'delete',
+    'head',
+    'options',
+  ];
   for (const k of preferredOrder) {
     const m = metaByMethod.get(k);
     if (m && (m.summary || m.description)) return m;

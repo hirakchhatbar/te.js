@@ -1,5 +1,5 @@
 import { filesize } from 'filesize';
-import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import TejError from './../error.js';
 import { extAndType, extract, paths } from './helper.js';
 
@@ -19,11 +19,11 @@ class TejFileUploader {
   file() {
     const keys = [...arguments];
     return async (ammo, next) => {
-      if (!ammo.headers['content-type'].startsWith('multipart/form-data'))
+      if (!ammo.headers['content-type']?.startsWith('multipart/form-data'))
         return next();
 
       const payload = ammo.payload;
-      const updatedPayload = {};
+      const updatedPayload = Object.create(null);
 
       for (const part in payload) {
         const obj = payload[part];
@@ -43,26 +43,32 @@ class TejFileUploader {
           if (!filename) continue;
 
           const { dir, absolute, relative } = paths(this.destination, filename);
-          const size = filesize(obj.value.length,
-            { output: 'object', round: 0 });
-          const maxSize = filesize(this.maxFileSize,
-            { output: 'object', round: 0 });
+          const size = filesize(obj.value.length, {
+            output: 'object',
+            round: 0,
+          });
+          const maxSize = filesize(this.maxFileSize, {
+            output: 'object',
+            round: 0,
+          });
           if (this.maxFileSize && obj.value.length > this.maxFileSize)
-            throw new TejError(413,
-              `File size exceeds ${maxSize.value} ${maxSize.symbol}`);
+            throw new TejError(
+              413,
+              `File size exceeds ${maxSize.value} ${maxSize.symbol}`,
+            );
 
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(absolute, obj.value, 'binary');
+          await fsp.mkdir(dir, { recursive: true });
+          await fsp.writeFile(absolute, obj.value, 'binary');
 
           updatedPayload[key] = {
             filename,
             extension: ext,
             path: {
               absolute: absolute,
-              relative: relative
+              relative: relative,
             },
             mimetype: type,
-            size
+            size,
           };
         }
       }
@@ -75,11 +81,11 @@ class TejFileUploader {
   files() {
     const keys = [...arguments];
     return async (ammo, next) => {
-      if (!ammo.headers['content-type'].startsWith('multipart/form-data'))
+      if (!ammo.headers['content-type']?.startsWith('multipart/form-data'))
         return next();
 
       const payload = ammo.payload;
-      const updatedPayload = {};
+      const updatedPayload = Object.create(null);
       const files = [];
 
       for (const part in payload) {
@@ -99,27 +105,33 @@ class TejFileUploader {
           if (!filename) continue;
 
           const { dir, absolute, relative } = paths(this.destination, filename);
-          const size = filesize(obj.value.length,
-            { output: 'object', round: 0 });
-          const maxSize = filesize(this.maxFileSize,
-            { output: 'object', round: 0 });
+          const size = filesize(obj.value.length, {
+            output: 'object',
+            round: 0,
+          });
+          const maxSize = filesize(this.maxFileSize, {
+            output: 'object',
+            round: 0,
+          });
           if (this.maxFileSize && obj.value.length > this.maxFileSize) {
-            throw new TejError(413,
-              `File size exceeds ${maxSize.value} ${maxSize.symbol}`);
+            throw new TejError(
+              413,
+              `File size exceeds ${maxSize.value} ${maxSize.symbol}`,
+            );
           }
 
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(absolute, obj.value, 'binary');
+          await fsp.mkdir(dir, { recursive: true });
+          await fsp.writeFile(absolute, obj.value, 'binary');
 
           files.push({
             key,
             filename,
             path: {
               absolute: absolute,
-              relative: relative
+              relative: relative,
             },
             mimetype: type,
-            size
+            size,
           });
         }
       }
@@ -128,7 +140,7 @@ class TejFileUploader {
         if (!acc[file.key]) acc[file.key] = [];
         acc[file.key].push(file);
         return acc;
-      }, {});
+      }, Object.create(null));
 
       for (const key in groupedFilesByKey) {
         updatedPayload[key] = groupedFilesByKey[key];

@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import path from 'path';
+import path from 'node:path';
 
 const findTargetFiles = async () => {
   if (!process.env.DIR_TARGETS) return;

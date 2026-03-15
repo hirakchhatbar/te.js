@@ -47,12 +47,10 @@ function rateLimiter(options) {
     );
   }
 
-  // Map algorithm names to their config property names
-  const configMap = {
-    'token-bucket': 'tokenBucketConfig',
-    'sliding-window': 'slidingWindowConfig',
-    'fixed-window': 'fixedWindowConfig',
-  };
+  const configMap = Object.create(null);
+  configMap['token-bucket'] = 'tokenBucketConfig';
+  configMap['sliding-window'] = 'slidingWindowConfig';
+  configMap['fixed-window'] = 'fixedWindowConfig';
 
   const configKey = configMap[algorithm];
   if (!configKey) {
@@ -62,13 +60,12 @@ function rateLimiter(options) {
     );
   }
 
-  // Create algorithm-specific config
-  const limiterConfig = {
+  const limiterConfig = Object.freeze({
     maxRequests: limiterOptions.maxRequests,
     timeWindowSeconds: limiterOptions.timeWindowSeconds,
     [configKey]: limiterOptions.algorithmOptions || {},
-    store, // Pass the store type to the limiter
-  };
+    store,
+  });
 
   // Create the appropriate limiter instance
   let limiter;
@@ -128,7 +125,7 @@ function rateLimiter(options) {
 
   // Return middleware function
   return async (ammo, next) => {
-    const key = keyGenerator(ammo);
+    const key = keyGenerator(ammo) ?? ammo.ip ?? 'unknown';
     const result = await limiter.consume(key);
 
     setRateLimitHeaders(ammo, result);

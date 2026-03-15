@@ -15,6 +15,9 @@ import {
   buildPayload,
   dispatchToChannels,
 } from './errors/channels/index.js';
+import TejLogger from 'tej-logger';
+
+const logger = new TejLogger('Tejas.Ammo');
 
 /**
  * Detect if the value is a throw() options object (per-call overrides).
@@ -378,7 +381,11 @@ class Ammo {
     // Per-call options: last arg can be { useLlm?, messageType? } when call is LLM-eligible (no explicit code).
     const llmEligible =
       args.length === 0 ||
-      (!isStatusCode(args[0]) && !(args[0] instanceof TejError));
+      (!isStatusCode(args[0]) &&
+        !(
+          typeof args[0]?.statusCode === 'number' &&
+          typeof args[0]?.code === 'string'
+        ));
     let throwOpts =
       /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } | null} */ (
         null
@@ -400,7 +407,7 @@ class Ammo {
       // Capture the stack string SYNCHRONOUSLY before any async work or fire() call,
       // because the call stack unwinds as soon as we await or respond.
       const stack =
-        args[0] instanceof Error && args[0].stack
+        args[0] != null && typeof args[0].stack === 'string'
           ? args[0].stack
           : new Error().stack;
       const originalError =
@@ -415,7 +422,8 @@ class Ammo {
         // Stash basic error info synchronously so radar can read it on res.finish
         // even before LLM completes. LLM result will update _errorInfo when ready.
         const errorType =
-          originalError instanceof Error
+          originalError != null &&
+          typeof originalError.constructor?.name === 'string'
             ? originalError.constructor.name
             : originalError !== undefined
               ? typeof originalError
@@ -473,8 +481,12 @@ class Ammo {
             });
             return dispatchToChannels(channels, payload);
           })
-          .catch(() => {
-            // Swallow background errors — the HTTP response has already been sent.
+          .catch((err) => {
+            // Background LLM failed after HTTP response already sent — log the failure
+            // but do not attempt to respond again.
+            logger.warn(
+              `Background LLM dispatch failed: ${err?.message ?? err}`,
+            );
           });
 
         return;
@@ -501,7 +513,8 @@ class Ammo {
         .then(({ result, codeContext }) => {
           const { statusCode, message, devInsight } = result;
           const errorType =
-            originalError instanceof Error
+            originalError != null &&
+            typeof originalError.constructor?.name === 'string'
               ? originalError.constructor.name
               : originalError !== undefined
                 ? typeof originalError
@@ -520,9 +533,10 @@ class Ammo {
               : message;
           this.fire(statusCode, data);
         })
-        .catch(() => {
+        .catch((err) => {
           // LLM call failed (network error, timeout, etc.) — fall back to generic 500
           // so the client always gets a response and we don't trigger an infinite retry loop.
+          logger.warn(`LLM error inference failed: ${err?.message ?? err}`);
           this.fire(500, 'Internal Server Error');
         });
     }
@@ -554,20 +568,27 @@ class Ammo {
       return;
     }
 
-    if (args[0] instanceof TejError) {
+    if (
+      typeof args[0]?.statusCode === 'number' &&
+      typeof args[0]?.code === 'string'
+    ) {
       const error = args[0];
       this._errorInfo = {
         message: error.message,
-        type: 'TejError',
+        type: error.constructor?.name ?? 'TejError',
         devInsight: null,
         stack: error.stack ?? null,
         codeContext: null,
       };
-      this.fire(error.code, error.message);
+      this.fire(error.statusCode, error.message);
       return;
     }
 
-    if (args[0] instanceof Error) {
+    if (
+      args[0] != null &&
+      typeof args[0].message === 'string' &&
+      typeof args[0].stack === 'string'
+    ) {
       const error = args[0];
       if (!isNaN(parseInt(error.message))) {
         const statusCode = parseInt(error.message);

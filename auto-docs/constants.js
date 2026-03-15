@@ -7,13 +7,24 @@
 export const OPENAPI_VERSION = '3.0.3';
 
 /** Lowercase HTTP method names (for method-keyed LLM response detection and OpenAPI operation keys). */
-export const METHOD_KEYS = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options']);
+export const METHOD_KEYS = new Set([
+  'get',
+  'put',
+  'post',
+  'delete',
+  'patch',
+  'head',
+  'options',
+]);
 
 /** When an endpoint accepts all HTTP methods, document it once under this key. */
 export const METHOD_AGNOSTIC_OPERATION_KEY = 'get';
 
 /** Max handler source length by level (chars; tokens roughly scale). Level 1 = moderate, 2 = high. */
-export const HANDLER_SOURCE_MAX_LENGTH_BY_LEVEL = { 1: 2800, 2: 6000 };
+export const HANDLER_SOURCE_MAX_LENGTH_BY_LEVEL = Object.freeze({
+  1: 2800,
+  2: 6000,
+});
 
 /** Default max chars for dependency context in formatDependencyContext and level-2 prompts. */
 export const DEPENDENCY_CONTEXT_MAX_CHARS = 6000;

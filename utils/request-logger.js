@@ -31,7 +31,7 @@ function maskForLog(value) {
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(maskForLog);
 
-  const result = {};
+  const result = Object.create(null);
   for (const [k, v] of Object.entries(value)) {
     result[k] = CONSOLE_MASK_FIELDS.has(k.toLowerCase()) ? '*' : maskForLog(v);
   }
@@ -42,7 +42,9 @@ function logHttpRequest(ammo, next) {
   if (!env('LOG_HTTP_REQUESTS')) return;
 
   const startTime = new Date();
-  ammo.res.on('finish', () => {
+  const controller = new AbortController();
+  ammo.res.on('finish', { signal: controller.signal }, () => {
+    controller.abort();
     const res = ammo.res;
     const method = italic(whiteBright(ammo.method));
     const endpoint = bold(ammo.endpoint);

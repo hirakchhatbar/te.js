@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  LLMRateLimiter,
-  getRateLimiter,
-} from '../../server/errors/llm-rate-limiter.js';
+import { LLMRateLimiter, getRateLimiter } from './llm-rate-limiter.js';
 
 describe('LLMRateLimiter', () => {
   describe('constructor', () => {
@@ -62,7 +59,6 @@ describe('LLMRateLimiter', () => {
       limiter.record();
       expect(limiter.canCall()).toBe(false);
 
-      // Advance time past 60 seconds
       vi.advanceTimersByTime(61_000);
 
       expect(limiter.canCall()).toBe(true);
@@ -74,13 +70,13 @@ describe('LLMRateLimiter', () => {
       vi.useFakeTimers();
 
       const limiter = new LLMRateLimiter(2);
-      limiter.record(); // at t=0
+      limiter.record();
 
-      vi.advanceTimersByTime(50_000); // t=50s
-      limiter.record(); // at t=50s
+      vi.advanceTimersByTime(50_000);
+      limiter.record();
 
-      vi.advanceTimersByTime(15_000); // t=65s — first record is now 65s old, second is 15s old
-      expect(limiter.canCall()).toBe(true); // first expired, second still active → 1/2 used
+      vi.advanceTimersByTime(15_000);
+      expect(limiter.canCall()).toBe(true);
       expect(limiter.remaining()).toBe(1);
 
       vi.useRealTimers();

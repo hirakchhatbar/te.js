@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { LLMErrorCache, getCache } from '../../server/errors/llm-cache.js';
+import { LLMErrorCache, getCache } from './llm-cache.js';
 
 describe('LLMErrorCache', () => {
   describe('constructor', () => {
@@ -88,7 +88,7 @@ describe('LLMErrorCache', () => {
     it('returns null for expired entries', () => {
       vi.useFakeTimers();
 
-      const cache = new LLMErrorCache(1000); // 1 second TTL
+      const cache = new LLMErrorCache(1000);
       cache.set('key1', { statusCode: 404, message: 'Not found' });
       expect(cache.get('key1')).not.toBeNull();
 
@@ -107,7 +107,7 @@ describe('LLMErrorCache', () => {
       expect(cache.size).toBe(1);
 
       vi.advanceTimersByTime(600);
-      cache.get('key1'); // should prune
+      cache.get('key1');
 
       expect(cache.size).toBe(0);
 

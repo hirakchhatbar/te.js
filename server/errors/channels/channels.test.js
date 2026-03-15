@@ -1,10 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  getChannels,
-  buildPayload,
-} from '../../server/errors/channels/index.js';
-import { ConsoleChannel } from '../../server/errors/channels/console.js';
-import { LogChannel } from '../../server/errors/channels/log.js';
+import { describe, it, expect, vi } from 'vitest';
+import { getChannels, buildPayload } from './index.js';
+import { ConsoleChannel } from './console.js';
+import { LogChannel } from './log.js';
 
 describe('getChannels()', () => {
   it('returns a ConsoleChannel for "console"', () => {
@@ -71,7 +68,6 @@ describe('buildPayload()', () => {
     expect(payload.error).toEqual({ type: 'Error', message: 'DB error' });
     expect(payload.codeContext).toBe(codeContext);
     expect(typeof payload.timestamp).toBe('string');
-    // ISO string
     expect(() => new Date(payload.timestamp)).not.toThrow();
   });
 

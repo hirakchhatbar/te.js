@@ -28,190 +28,194 @@ async function parseDataBasedOnContentType(req) {
 }
 
 function parseJSONRequestBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    let size = 0;
-    const maxSize = env('BODY_MAX_SIZE');
-    const timeout = setTimeout(() => {
-      reject(new BodyParserError('Request timeout', 408));
-    }, env('BODY_TIMEOUT'));
+  const { promise, resolve, reject } = Promise.withResolvers();
+  let body = '';
+  let size = 0;
+  const maxSize = env('BODY_MAX_SIZE');
+  const timeout = setTimeout(() => {
+    reject(new BodyParserError('Request timeout', 408));
+  }, env('BODY_TIMEOUT'));
 
-    req.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > maxSize) {
-        clearTimeout(timeout);
-        reject(new BodyParserError('Request entity too large', 413));
-        req.destroy();
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > maxSize) {
+      clearTimeout(timeout);
+      reject(new BodyParserError('Request entity too large', 413));
+      req.destroy();
+      return;
+    }
+    body += chunk.toString();
+  });
+
+  req.on('error', (err) => {
+    clearTimeout(timeout);
+    reject(new BodyParserError(`Request error: ${err.message}`, 400));
+  });
+
+  req.on('end', () => {
+    clearTimeout(timeout);
+    try {
+      if (!body) {
+        resolve({});
         return;
       }
-      body += chunk.toString();
-    });
-
-    req.on('error', (err) => {
-      clearTimeout(timeout);
-      reject(new BodyParserError(`Request error: ${err.message}`, 400));
-    });
-
-    req.on('end', () => {
-      clearTimeout(timeout);
-      try {
-        if (!body) {
-          resolve({});
-          return;
-        }
-        const jsonData = JSON.parse(body);
-        if (typeof jsonData !== 'object') {
-          throw new TejError(400, 'Invalid JSON structure');
-        }
-        resolve(jsonData);
-      } catch (err) {
-        reject(new TejError(400, `Invalid JSON: ${err.message}`));
+      const jsonData = JSON.parse(body);
+      if (typeof jsonData !== 'object') {
+        throw new TejError(400, 'Invalid JSON structure');
       }
-    });
+      resolve(jsonData);
+    } catch (err) {
+      reject(new TejError(400, `Invalid JSON: ${err.message}`));
+    }
   });
+
+  return promise;
 }
 
 function parseUrlEncodedData(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    let size = 0;
-    const maxSize = env('BODY_MAX_SIZE');
-    const timeout = setTimeout(() => {
-      reject(new BodyParserError('Request timeout', 408));
-    }, env('BODY_TIMEOUT'));
+  const { promise, resolve, reject } = Promise.withResolvers();
+  let body = '';
+  let size = 0;
+  const maxSize = env('BODY_MAX_SIZE');
+  const timeout = setTimeout(() => {
+    reject(new BodyParserError('Request timeout', 408));
+  }, env('BODY_TIMEOUT'));
 
-    req.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > maxSize) {
-        clearTimeout(timeout);
-        reject(new BodyParserError('Request entity too large', 413));
-        req.destroy();
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > maxSize) {
+      clearTimeout(timeout);
+      reject(new BodyParserError('Request entity too large', 413));
+      req.destroy();
+      return;
+    }
+    body += chunk.toString();
+  });
+
+  req.on('error', (err) => {
+    clearTimeout(timeout);
+    reject(new BodyParserError(`Request error: ${err.message}`, 400));
+  });
+
+  req.on('end', () => {
+    clearTimeout(timeout);
+    try {
+      if (!body) {
+        resolve({});
         return;
       }
-      body += chunk.toString();
-    });
-
-    req.on('error', (err) => {
-      clearTimeout(timeout);
-      reject(new BodyParserError(`Request error: ${err.message}`, 400));
-    });
-
-    req.on('end', () => {
-      clearTimeout(timeout);
-      try {
-        if (!body) {
-          resolve({});
-          return;
-        }
-        const data = new URLSearchParams(body);
-        const parsedData = Object.fromEntries(data);
-        resolve(parsedData);
-      } catch (err) {
-        reject(new BodyParserError('Invalid URL encoded data', 400));
-      }
-    });
+      const data = new URLSearchParams(body);
+      const parsedData = Object.fromEntries(data);
+      resolve(parsedData);
+    } catch (err) {
+      reject(new BodyParserError('Invalid URL encoded data', 400));
+    }
   });
+
+  return promise;
 }
 
 function parseFormData(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    let size = 0;
-    const maxSize = env('BODY_MAX_SIZE');
-    const timeout = setTimeout(() => {
-      reject(new BodyParserError('Request timeout', 408));
-    }, env('BODY_TIMEOUT'));
+  const { promise, resolve, reject } = Promise.withResolvers();
+  let body = '';
+  let size = 0;
+  const maxSize = env('BODY_MAX_SIZE');
+  const timeout = setTimeout(() => {
+    reject(new BodyParserError('Request timeout', 408));
+  }, env('BODY_TIMEOUT'));
 
-    req.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > maxSize) {
-        clearTimeout(timeout);
-        reject(new BodyParserError('Request entity too large', 413));
-        req.destroy();
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > maxSize) {
+      clearTimeout(timeout);
+      reject(new BodyParserError('Request entity too large', 413));
+      req.destroy();
+      return;
+    }
+    body += chunk.toString();
+  });
+
+  req.on('error', (err) => {
+    clearTimeout(timeout);
+    reject(new BodyParserError(`Request error: ${err.message}`, 400));
+  });
+
+  req.on('end', () => {
+    clearTimeout(timeout);
+    try {
+      if (!body.trim()) {
+        resolve([]);
         return;
       }
-      body += chunk.toString();
-    });
 
-    req.on('error', (err) => {
-      clearTimeout(timeout);
-      reject(new BodyParserError(`Request error: ${err.message}`, 400));
-    });
+      const contentType = req.headers['content-type'];
+      const boundaryMatch = contentType.match(
+        /boundary=(?:"([^"]+)"|([^;]+))/i,
+      );
 
-    req.on('end', () => {
-      clearTimeout(timeout);
-      try {
-        if (!body.trim()) {
-          resolve([]);
-          return;
+      if (!boundaryMatch) {
+        throw new TejError(400, 'Missing boundary in content-type');
+      }
+
+      const boundary = '--' + (boundaryMatch[1] || boundaryMatch[2]);
+      const parts = body
+        .split(boundary)
+        .filter((part) => part.trim() !== '' && part.trim() !== '--');
+
+      const parsedData = parts.map((part) => {
+        const [headerString, ...contentParts] = part.split('\r\n\r\n');
+        if (!headerString || contentParts.length === 0) {
+          throw new TejError(400, 'Malformed multipart part');
         }
 
-        const contentType = req.headers['content-type'];
-        const boundaryMatch = contentType.match(
-          /boundary=(?:"([^"]+)"|([^;]+))/i,
-        );
+        const headers = Object.create(null);
+        const headerLines = headerString.trim().split('\r\n');
 
-        if (!boundaryMatch) {
-          throw new TejError(400, 'Missing boundary in content-type');
-        }
-
-        const boundary = '--' + (boundaryMatch[1] || boundaryMatch[2]);
-        const parts = body
-          .split(boundary)
-          .filter((part) => part.trim() !== '' && part.trim() !== '--');
-
-        const parsedData = parts.map((part) => {
-          const [headerString, ...contentParts] = part.split('\r\n\r\n');
-          if (!headerString || contentParts.length === 0) {
-            throw new TejError(400, 'Malformed multipart part');
+        headerLines.forEach((line) => {
+          const [key, ...valueParts] = line.split(': ');
+          if (!key || valueParts.length === 0) {
+            throw new TejError(400, 'Malformed header');
           }
-
-          const headers = {};
-          const headerLines = headerString.trim().split('\r\n');
-
-          headerLines.forEach((line) => {
-            const [key, ...valueParts] = line.split(': ');
-            if (!key || valueParts.length === 0) {
-              throw new TejError(400, 'Malformed header');
-            }
-            headers[key.toLowerCase()] = valueParts.join(': ');
-          });
-
-          const value = contentParts.join('\r\n\r\n').replace(/\r\n$/, '');
-
-          // Parse content-disposition
-          const disposition = headers['content-disposition'];
-          if (!disposition) {
-            throw new TejError(400, 'Missing content-disposition header');
-          }
-
-          const nameMatch = disposition.match(/name="([^"]+)"/);
-          const filename = disposition.match(/filename="([^"]+)"/);
-
-          return {
-            name: nameMatch ? nameMatch[1] : undefined,
-            filename: filename ? filename[1] : undefined,
-            headers,
-            value,
-          };
+          headers[key.toLowerCase()] = valueParts.join(': ');
         });
 
-        resolve(parsedData);
-      } catch (err) {
-        reject(
-          new BodyParserError(
-            `Invalid multipart form data: ${err.message}`,
-            400,
-          ),
-        );
-      }
-    });
+        const value = contentParts.join('\r\n\r\n').replace(/\r\n$/, '');
+
+        const disposition = headers['content-disposition'];
+        if (!disposition) {
+          throw new TejError(400, 'Missing content-disposition header');
+        }
+
+        const nameMatch = disposition.match(/name="([^"]+)"/);
+        const filename = disposition.match(/filename="([^"]+)"/);
+
+        return {
+          name: nameMatch ? nameMatch[1] : undefined,
+          filename: filename ? filename[1] : undefined,
+          headers,
+          value,
+        };
+      });
+
+      resolve(parsedData);
+    } catch (err) {
+      reject(
+        new BodyParserError(`Invalid multipart form data: ${err.message}`, 400),
+      );
+    }
   });
+
+  return promise;
 }
 
 class BodyParserError extends TejError {
-  constructor(message, statusCode = 400) {
-    super(statusCode, message);
+  /**
+   * @param {string} message     - Human-readable description
+   * @param {number} [statusCode=400] - HTTP status code
+   * @param {{ cause?: Error }} [options] - Optional cause for chaining
+   */
+  constructor(message, statusCode = 400, options) {
+    super(statusCode, message, options);
     this.name = 'BodyParserError';
   }
 }

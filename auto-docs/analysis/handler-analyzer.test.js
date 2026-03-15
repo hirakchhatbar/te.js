@@ -2,7 +2,11 @@
  * Unit tests for auto-docs handler-analyzer (detectMethods, analyzeHandler).
  */
 import { describe, it, expect } from 'vitest';
-import { detectMethods, analyzeHandler, ALL_METHODS } from '../../auto-docs/analysis/handler-analyzer.js';
+import {
+  detectMethods,
+  analyzeHandler,
+  ALL_METHODS,
+} from './handler-analyzer.js';
 
 describe('handler-analyzer', () => {
   describe('detectMethods', () => {
@@ -12,7 +16,9 @@ describe('handler-analyzer', () => {
     });
 
     it('detects GET when handler uses ammo.GET', () => {
-      const handler = (ammo) => { if (ammo.GET) ammo.fire(200, {}); };
+      const handler = (ammo) => {
+        if (ammo.GET) ammo.fire(200, {});
+      };
       expect(detectMethods(handler)).toContain('GET');
     });
 
@@ -55,7 +61,7 @@ describe('handler-analyzer', () => {
 
     it('detects from ammo.only with double-quoted methods', () => {
       const handler = (ammo) => {
-        ammo.only("GET");
+        ammo.only('GET');
         ammo.fire(200);
       };
       const detected = detectMethods(handler);
@@ -65,7 +71,7 @@ describe('handler-analyzer', () => {
 
     it('detects from .only with no space after comma', () => {
       const handler = (ammo) => {
-        ammo.only('GET','POST');
+        ammo.only('GET', 'POST');
         ammo.fire(200);
       };
       const detected = detectMethods(handler);
@@ -88,7 +94,9 @@ describe('handler-analyzer', () => {
 
   describe('analyzeHandler', () => {
     it('returns object with methods array', () => {
-      const handler = (ammo) => { if (ammo.GET) ammo.fire(200); };
+      const handler = (ammo) => {
+        if (ammo.GET) ammo.fire(200);
+      };
       const result = analyzeHandler(handler);
       expect(result).toHaveProperty('methods');
       expect(Array.isArray(result.methods)).toBe(true);

@@ -15,7 +15,9 @@ class DatabaseManager {
 
   // Helper method for sleeping
   async #sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    const { promise, resolve } = Promise.withResolvers();
+    setTimeout(resolve, ms);
+    return promise;
   }
 
   constructor() {
