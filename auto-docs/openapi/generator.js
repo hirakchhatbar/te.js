@@ -39,7 +39,7 @@ async function generateOpenAPISpec(registry, options = {}) {
     logger = null,
   } = options;
   const targets = registry?.targets ?? [];
-  const paths = {};
+  const paths = Object.create(null);
   const groupEndpoints = new Map();
   const dependencyContextByGroup = new Map();
 
@@ -71,10 +71,12 @@ async function generateOpenAPISpec(registry, options = {}) {
   );
   applyTagDisplayNames(paths, tagDescriptions);
 
-  const tags = Array.from(tagDescriptions.entries()).map(([, { name, description }]) => ({
-    name,
-    ...(description && { description }),
-  }));
+  const tags = Array.from(tagDescriptions.entries()).map(
+    ([, { name, description }]) => ({
+      name,
+      ...(description && { description }),
+    }),
+  );
 
   const spec = {
     openapi: OPENAPI_VERSION,

@@ -51,7 +51,7 @@ function buildPrompt(context) {
 
   let errorPart = '';
   if (error !== undefined && error !== null) {
-    if (error instanceof Error) {
+    if (error != null && typeof error.message === 'string') {
       errorPart = `\nOptional error message (may be empty): ${error.message}`;
     } else {
       errorPart = `\nOptional error/message: ${String(error)}`;

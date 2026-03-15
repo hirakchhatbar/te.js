@@ -140,7 +140,7 @@ const handler = async (req, res) => {
     return;
   }
 
-  const url = req.url.split('?')[0];
+  const url = (req.url ?? '/').split('?')[0] || '/';
   const match = targetRegistry.aim(url);
   const ammo = new Ammo(req, res);
 

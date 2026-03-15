@@ -1,6 +1,6 @@
-import { spawnSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import TejError from '../server/error.js';
 import TejLogger from 'tej-logger';
 import { pathToFileURL } from 'node:url';
@@ -10,14 +10,20 @@ const packagePath = `${process.cwd()}/node_modules/redis/dist/index.js`;
 
 const logger = new TejLogger('RedisConnectionManager');
 
-function checkRedisInstallation() {
+async function checkRedisInstallation() {
   try {
-    // Check if redis exists in package.json
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const packageJson = JSON.parse(
+      await fs.promises.readFile(packageJsonPath, 'utf8'),
+    );
     const inPackageJson = !!packageJson.dependencies?.redis;
 
-    // Check if redis exists in node_modules
-    const inNodeModules = fs.existsSync(packagePath);
+    let inNodeModules = false;
+    try {
+      await fs.promises.access(packagePath);
+      inNodeModules = true;
+    } catch {
+      inNodeModules = false;
+    }
 
     return {
       needsInstall: !inPackageJson || !inNodeModules,
@@ -87,7 +93,7 @@ function installRedisSync() {
  * @returns {Promise<RedisClient|RedisCluster>} Redis client or cluster instance
  */
 async function createConnection(config) {
-  const { needsInstall } = checkRedisInstallation();
+  const { needsInstall } = await checkRedisInstallation();
 
   if (needsInstall) {
     const installed = installRedisSync();
@@ -119,46 +125,49 @@ async function createConnection(config) {
     let connectionAttempts = 0;
     const maxRetries = options.maxRetries || 3;
 
-    // Create a promise that will resolve when connected or reject on fatal errors
-    const connectionPromise = new Promise((resolve, reject) => {
-      connectionTimeout = setTimeout(() => {
-        if (!hasConnected) {
-          client.quit().catch(() => {});
-          reject(new TejError(500, 'Redis connection timeout'));
-        }
-      }, options.connectTimeout || 10000);
+    const {
+      promise: connectionPromise,
+      resolve: resolveConnection,
+      reject: rejectConnection,
+    } = Promise.withResolvers();
 
-      client.on('error', (err) => {
-        logger.error(`Redis connection error: ${err}`, true);
-        if (!hasConnected && connectionAttempts >= maxRetries) {
-          clearTimeout(connectionTimeout);
-          client.quit().catch(() => {});
-          reject(
-            new TejError(
-              500,
-              `Redis connection failed after ${maxRetries} attempts: ${err.message}`,
-            ),
-          );
-        }
-        connectionAttempts++;
-      });
+    connectionTimeout = setTimeout(() => {
+      if (!hasConnected) {
+        client.quit().catch(() => {});
+        rejectConnection(new TejError(500, 'Redis connection timeout'));
+      }
+    }, options.connectTimeout || 10000);
 
-      client.on('connect', () => {
-        hasConnected = true;
+    client.on('error', (err) => {
+      logger.error(`Redis connection error: ${err}`, true);
+      if (!hasConnected && connectionAttempts >= maxRetries) {
         clearTimeout(connectionTimeout);
-        logger.info(
-          `Redis connected on ${client?.options?.url ?? client?.options?.socket?.host}`,
+        client.quit().catch(() => {});
+        rejectConnection(
+          new TejError(
+            500,
+            `Redis connection failed after ${maxRetries} attempts: ${err.message}`,
+          ),
         );
-      });
+      }
+      connectionAttempts++;
+    });
 
-      client.on('ready', () => {
-        logger.info('Redis ready');
-        resolve(client);
-      });
+    client.on('connect', () => {
+      hasConnected = true;
+      clearTimeout(connectionTimeout);
+      logger.info(
+        `Redis connected on ${client?.options?.url ?? client?.options?.socket?.host}`,
+      );
+    });
 
-      client.on('end', () => {
-        logger.info('Redis connection closed');
-      });
+    client.on('ready', () => {
+      logger.info('Redis ready');
+      resolveConnection(client);
+    });
+
+    client.on('end', () => {
+      logger.info('Redis connection closed');
     });
 
     await client.connect();

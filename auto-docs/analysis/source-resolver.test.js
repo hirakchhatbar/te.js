@@ -7,7 +7,7 @@ import {
   extractRelativeImports,
   resolveTargetFilePath,
   formatDependencyContext,
-} from '../../auto-docs/analysis/source-resolver.js';
+} from './source-resolver.js';
 
 describe('source-resolver', () => {
   describe('extractRelativeImports', () => {

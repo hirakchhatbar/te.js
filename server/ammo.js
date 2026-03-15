@@ -15,6 +15,9 @@ import {
   buildPayload,
   dispatchToChannels,
 } from './errors/channels/index.js';
+import TejLogger from 'tej-logger';
+
+const logger = new TejLogger('Tejas.Ammo');
 
 /**
  * Detect if the value is a throw() options object (per-call overrides).
@@ -85,6 +88,13 @@ class Ammo {
 
     // Response related data
     this.dispatchedData = undefined;
+
+    /**
+     * Resolved error info stashed after ammo.throw() completes.
+     * Read by the radar middleware on res.finish to populate error tracking.
+     * @type {{ message: string, type: string|null, devInsight: string|null, stack: string|null, codeContext: object|null } | null}
+     */
+    this._errorInfo = null;
   }
 
   /**
@@ -371,7 +381,11 @@ class Ammo {
     // Per-call options: last arg can be { useLlm?, messageType? } when call is LLM-eligible (no explicit code).
     const llmEligible =
       args.length === 0 ||
-      (!isStatusCode(args[0]) && !(args[0] instanceof TejError));
+      (!isStatusCode(args[0]) &&
+        !(
+          typeof args[0]?.statusCode === 'number' &&
+          typeof args[0]?.code === 'string'
+        ));
     let throwOpts =
       /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } | null} */ (
         null
@@ -393,7 +407,7 @@ class Ammo {
       // Capture the stack string SYNCHRONOUSLY before any async work or fire() call,
       // because the call stack unwinds as soon as we await or respond.
       const stack =
-        args[0] instanceof Error && args[0].stack
+        args[0] != null && typeof args[0].stack === 'string'
           ? args[0].stack
           : new Error().stack;
       const originalError =
@@ -405,11 +419,31 @@ class Ammo {
         // Respond immediately with a generic 500, then run LLM in the background.
         this.fire(500, 'Internal Server Error');
 
+        // Stash basic error info synchronously so radar can read it on res.finish
+        // even before LLM completes. LLM result will update _errorInfo when ready.
+        const errorType =
+          originalError != null &&
+          typeof originalError.constructor?.name === 'string'
+            ? originalError.constructor.name
+            : originalError !== undefined
+              ? typeof originalError
+              : null;
+        this._errorInfo = {
+          message: 'Internal Server Error',
+          type: errorType,
+          devInsight: null,
+          stack: stack ?? null,
+          codeContext: null,
+        };
+
         // Fire-and-forget: capture context, call LLM, dispatch to channel.
         const method = this.method;
         const path = this.path;
+        const self = this;
         captureCodeContext(stack)
           .then((codeContext) => {
+            // Update _errorInfo with captured code context
+            if (self._errorInfo) self._errorInfo.codeContext = codeContext;
             const context = {
               codeContext,
               method,
@@ -428,6 +462,11 @@ class Ammo {
             }));
           })
           .then(({ result, codeContext }) => {
+            // Update _errorInfo with full LLM result
+            if (self._errorInfo) {
+              self._errorInfo.message = result.message;
+              self._errorInfo.devInsight = result.devInsight ?? null;
+            }
             const channels = getChannels(channel, logFile);
             const payload = buildPayload({
               method,
@@ -442,8 +481,12 @@ class Ammo {
             });
             return dispatchToChannels(channels, payload);
           })
-          .catch(() => {
-            // Swallow background errors — the HTTP response has already been sent.
+          .catch((err) => {
+            // Background LLM failed after HTTP response already sent — log the failure
+            // but do not attempt to respond again.
+            logger.warn(
+              `Background LLM dispatch failed: ${err?.message ?? err}`,
+            );
           });
 
         return;
@@ -462,9 +505,27 @@ class Ammo {
             }),
           };
           if (originalError !== undefined) context.error = originalError;
-          return inferErrorFromContext(context);
+          return inferErrorFromContext(context).then((result) => ({
+            result,
+            codeContext,
+          }));
         })
-        .then(({ statusCode, message, devInsight }) => {
+        .then(({ result, codeContext }) => {
+          const { statusCode, message, devInsight } = result;
+          const errorType =
+            originalError != null &&
+            typeof originalError.constructor?.name === 'string'
+              ? originalError.constructor.name
+              : originalError !== undefined
+                ? typeof originalError
+                : null;
+          this._errorInfo = {
+            message,
+            type: errorType,
+            devInsight: devInsight ?? null,
+            stack: stack ?? null,
+            codeContext: codeContext ?? null,
+          };
           const isProduction = process.env.NODE_ENV === 'production';
           const data =
             !isProduction && devInsight
@@ -472,15 +533,23 @@ class Ammo {
               : message;
           this.fire(statusCode, data);
         })
-        .catch(() => {
+        .catch((err) => {
           // LLM call failed (network error, timeout, etc.) — fall back to generic 500
           // so the client always gets a response and we don't trigger an infinite retry loop.
+          logger.warn(`LLM error inference failed: ${err?.message ?? err}`);
           this.fire(500, 'Internal Server Error');
         });
     }
 
     // Sync path: explicit code/message or useLlm: false
     if (args.length === 0) {
+      this._errorInfo = {
+        message: 'Internal Server Error',
+        type: null,
+        devInsight: null,
+        stack: null,
+        codeContext: null,
+      };
       this.fire(500, 'Internal Server Error');
       return;
     }
@@ -488,29 +557,71 @@ class Ammo {
     if (isStatusCode(args[0])) {
       const statusCode = args[0];
       const message = args[1] || toStatusMessage(statusCode);
+      this._errorInfo = {
+        message,
+        type: null,
+        devInsight: null,
+        stack: null,
+        codeContext: null,
+      };
       this.fire(statusCode, message);
       return;
     }
 
-    if (args[0] instanceof TejError) {
+    if (
+      typeof args[0]?.statusCode === 'number' &&
+      typeof args[0]?.code === 'string'
+    ) {
       const error = args[0];
-      this.fire(error.code, error.message);
+      this._errorInfo = {
+        message: error.message,
+        type: error.constructor?.name ?? 'TejError',
+        devInsight: null,
+        stack: error.stack ?? null,
+        codeContext: null,
+      };
+      this.fire(error.statusCode, error.message);
       return;
     }
 
-    if (args[0] instanceof Error) {
+    if (
+      args[0] != null &&
+      typeof args[0].message === 'string' &&
+      typeof args[0].stack === 'string'
+    ) {
       const error = args[0];
       if (!isNaN(parseInt(error.message))) {
         const statusCode = parseInt(error.message);
         const message = toStatusMessage(statusCode) || toStatusMessage(500);
+        this._errorInfo = {
+          message,
+          type: error.constructor.name,
+          devInsight: null,
+          stack: error.stack ?? null,
+          codeContext: null,
+        };
         this.fire(statusCode, message);
         return;
       }
       const statusCode = toStatusCode(error.message);
       if (statusCode) {
+        this._errorInfo = {
+          message: error.message,
+          type: error.constructor.name,
+          devInsight: null,
+          stack: error.stack ?? null,
+          codeContext: null,
+        };
         this.fire(statusCode, error.message);
         return;
       }
+      this._errorInfo = {
+        message: error.message,
+        type: error.constructor.name,
+        devInsight: null,
+        stack: error.stack ?? null,
+        codeContext: null,
+      };
       this.fire(500, error.message);
       return;
     }
@@ -518,9 +629,23 @@ class Ammo {
     const errorValue = args[0];
     const statusCode = toStatusCode(errorValue);
     if (statusCode) {
+      this._errorInfo = {
+        message: toStatusMessage(statusCode),
+        type: null,
+        devInsight: null,
+        stack: null,
+        codeContext: null,
+      };
       this.fire(statusCode, toStatusMessage(statusCode));
       return;
     }
+    this._errorInfo = {
+      message: errorValue.toString(),
+      type: null,
+      devInsight: null,
+      stack: null,
+      codeContext: null,
+    };
     this.fire(500, errorValue.toString());
   }
 }

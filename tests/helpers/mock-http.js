@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 /**
  * Mock HTTP IncomingMessage (request) object
@@ -233,9 +233,9 @@ export function createMockRequest(options = {}) {
     method: 'GET',
     url: '/',
     headers: {
-      'host': 'localhost:3000',
+      host: 'localhost:3000',
       'user-agent': 'test-agent',
-      'accept': '*/*',
+      accept: '*/*',
     },
     ip: '127.0.0.1',
   };
@@ -268,7 +268,7 @@ export function createJsonRequest(options = {}) {
     ...options,
     headers: {
       'content-type': 'application/json',
-      'accept': 'application/json',
+      accept: 'application/json',
       ...options.headers,
     },
   });
@@ -338,5 +338,3 @@ export default {
   createMultipartRequest,
   createMultipartBody,
 };
-
-

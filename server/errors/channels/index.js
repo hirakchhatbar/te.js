@@ -77,7 +77,7 @@ export function buildPayload({
   rateLimited,
 }) {
   let errorSummary = null;
-  if (originalError instanceof Error) {
+  if (originalError != null && typeof originalError.message === 'string') {
     errorSummary = {
       type: originalError.constructor?.name ?? 'Error',
       message: originalError.message ?? '',

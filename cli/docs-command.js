@@ -32,25 +32,25 @@ function mask(value) {
 
 function ask(question, fallback = '') {
   const hint = fallback ? c.dim(` (${fallback})`) : '';
-  return new Promise((resolve) => {
-    rl.question(`${c.cyan('?')} ${question}${hint}${c.dim(': ')}`, (answer) => {
-      resolve(answer.trim() || fallback);
-    });
+  const { promise, resolve } = Promise.withResolvers();
+  rl.question(`${c.cyan('?')} ${question}${hint}${c.dim(': ')}`, (answer) => {
+    resolve(answer.trim() || fallback);
   });
+  return promise;
 }
 
 function askYesNo(question, fallback = false) {
   const hint = fallback ? 'Y/n' : 'y/N';
-  return new Promise((resolve) => {
-    rl.question(
-      `${c.cyan('?')} ${question} ${c.dim(`(${hint})`)}${c.dim(': ')}`,
-      (answer) => {
-        const val = answer.trim().toLowerCase();
-        if (!val) return resolve(fallback);
-        resolve(val === 'y' || val === 'yes');
-      },
-    );
-  });
+  const { promise, resolve } = Promise.withResolvers();
+  rl.question(
+    `${c.cyan('?')} ${question} ${c.dim(`(${hint})`)}${c.dim(': ')}`,
+    (answer) => {
+      const val = answer.trim().toLowerCase();
+      if (!val) return resolve(fallback);
+      resolve(val === 'y' || val === 'yes');
+    },
+  );
+  return promise;
 }
 
 async function loadTargetFiles(dirTargets = 'targets') {
@@ -88,13 +88,15 @@ async function loadTargetFiles(dirTargets = 'targets') {
 function getDocsOptionsFromConfig(config = {}) {
   const docs = config.docs || config.generateDocs || {};
   const e = process.env;
-  const baseURL = docs.llm?.baseURL ?? e.LLM_BASE_URL ?? 'https://api.openai.com/v1';
+  const baseURL =
+    docs.llm?.baseURL ?? e.LLM_BASE_URL ?? 'https://api.openai.com/v1';
   const apiKey = docs.llm?.apiKey ?? e.LLM_API_KEY ?? e.OPENAI_API_KEY;
   const model = docs.llm?.model ?? e.LLM_MODEL ?? 'gpt-4o-mini';
   if (!apiKey && !e.OPENAI_API_KEY) {
     return null;
   }
-  const dirTargets = docs.dirTargets ?? docs.dir?.targets ?? config.dir?.targets ?? 'targets';
+  const dirTargets =
+    docs.dirTargets ?? docs.dir?.targets ?? config.dir?.targets ?? 'targets';
   const output = docs.output ?? './openapi.json';
   const title = docs.title ?? 'API';
   const version = docs.version ?? '1.0.0';
@@ -116,7 +118,7 @@ function getDocsOptionsFromConfig(config = {}) {
  * @returns {Promise<void>}
  */
 export async function runDocsCommandCI() {
-  const config = loadConfigFile();
+  const config = await loadConfigFile();
   const options = getDocsOptionsFromConfig(config);
   if (!options) {
     console.error(
@@ -128,7 +130,9 @@ export async function runDocsCommandCI() {
   process.stdout.write(`${c.yellow('⏳')} Loading targets...`);
   const fileCount = await loadTargetFiles(dirTargets);
   const endpointCount = targetRegistry.targets?.length ?? 0;
-  process.stdout.write(`\r${c.green('✓')} Loaded ${c.bold(fileCount)} target file(s) — ${c.bold(endpointCount)} endpoint(s)\n`);
+  process.stdout.write(
+    `\r${c.green('✓')} Loaded ${c.bold(fileCount)} target file(s) — ${c.bold(endpointCount)} endpoint(s)\n`,
+  );
   if (endpointCount === 0) {
     console.log(c.yellow('  No endpoints found. Skipping doc generation.\n'));
     return;
@@ -156,19 +160,19 @@ export async function runDocsCommandCI() {
  * @returns {Promise<string[]>} e.g. ['refs/heads/main', 'refs/heads/feature/x']
  */
 function readPrePushRefs() {
-  return new Promise((resolve) => {
-    const chunks = [];
-    stdin.on('data', (chunk) => chunks.push(chunk));
-    stdin.on('end', () => {
-      const lines = Buffer.concat(chunks).toString('utf8').trim().split('\n');
-      const refs = [];
-      for (let i = 0; i < lines.length; i++) {
-        const parts = lines[i].split(/\s+/);
-        if (parts.length >= 4) refs.push(parts[2]); // remote_ref
-      }
-      resolve(refs);
-    });
+  const { promise, resolve } = Promise.withResolvers();
+  const chunks = [];
+  stdin.on('data', (chunk) => chunks.push(chunk));
+  stdin.on('end', () => {
+    const lines = Buffer.concat(chunks).toString('utf8').trim().split('\n');
+    const refs = [];
+    for (let i = 0; i < lines.length; i++) {
+      const parts = lines[i].split(/\s+/);
+      if (parts.length >= 4) refs.push(parts[2]);
+    }
+    resolve(refs);
   });
+  return promise;
 }
 
 /**
@@ -178,7 +182,7 @@ function readPrePushRefs() {
  * Configure via tejas.config.json docs.productionBranch or env DOCS_PRODUCTION_BRANCH (default: main).
  */
 export async function runDocsOnPush() {
-  const config = loadConfigFile();
+  const config = await loadConfigFile();
   const docs = config.docs || config.generateDocs || {};
   const productionBranch =
     docs.productionBranch ?? process.env.DOCS_PRODUCTION_BRANCH ?? 'main';
@@ -186,7 +190,11 @@ export async function runDocsOnPush() {
   const productionRef = `refs/heads/${productionBranch}`;
   const isPushingToProduction = remoteRefs.some((ref) => ref === productionRef);
   if (!isPushingToProduction) return;
-  console.log(c.dim(`  Docs: pushing to ${productionBranch} — generating documentation...\n`));
+  console.log(
+    c.dim(
+      `  Docs: pushing to ${productionBranch} — generating documentation...\n`,
+    ),
+  );
   await runDocsCommandCI();
 }
 
@@ -207,13 +215,13 @@ function serveDocsPreview(spec, port = 3333) {
     res.writeHead(404);
     res.end('Not found');
   });
-  return new Promise((resolve) => {
-    server.listen(port, () => resolve(server));
-  });
+  const { promise, resolve } = Promise.withResolvers();
+  server.listen(port, () => resolve(server));
+  return promise;
 }
 
 export async function runDocsCommand() {
-  const config = loadConfigFile();
+  const config = await loadConfigFile();
   const e = process.env;
 
   console.log();

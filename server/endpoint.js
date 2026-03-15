@@ -2,7 +2,16 @@ import isMiddlewareValid from './targets/middleware-validator.js';
 import { isPathValid, standardizePath } from './targets/path-validator.js';
 import isShootValid from './targets/shoot-validator.js';
 
+/**
+ * Represents a single route endpoint: a path, handler, optional middlewares,
+ * allowed HTTP methods, and documentation metadata.
+ *
+ * Use the fluent builder methods to configure before registering with a Target.
+ */
 class Endpoint {
+  /**
+   * Create a new Endpoint with empty defaults.
+   */
   constructor() {
     this.path = '';
     this.middlewares = [];
@@ -14,6 +23,12 @@ class Endpoint {
     this.group = null;
   }
 
+  /**
+   * Set the full path by combining a base path and a path segment.
+   * @param {string} base - Base path (e.g. '/api')
+   * @param {string} path - Route path segment (e.g. '/users')
+   * @returns {Endpoint}
+   */
   setPath(base, path) {
     const standardizedBase = standardizePath(base);
     const standardizedPath = standardizePath(path);

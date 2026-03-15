@@ -2,19 +2,27 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // Use ESM modules
     environment: 'node',
 
-    // Test file patterns
-    include: ['tests/**/*.test.js'],
+    // Adjacent test files (implementation-colocated, per CODING_PRACTICES.md)
+    // and legacy centralized test directory both supported.
+    include: [
+      'tests/**/*.test.js',
+      'server/**/*.test.js',
+      'rate-limit/**/*.test.js',
+      'database/**/*.test.js',
+      'utils/**/*.test.js',
+      'cors/**/*.test.js',
+      'radar/**/*.test.js',
+      'lib/**/*.test.js',
+      'auto-docs/**/*.test.js',
+      'cli/**/*.test.js',
+    ],
 
-    // Global test timeout (ms)
     testTimeout: 10000,
 
-    // Enable globals (describe, it, expect, etc.)
     globals: true,
 
-    // Coverage configuration
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -29,26 +37,20 @@ export default defineConfig({
         'tests/**',
         'example/**',
         'docs/**',
+        '**/*.test.js',
       ],
     },
 
-    // Reporter options
     reporters: ['verbose'],
 
-    // Isolation mode - each test file runs in its own context
     isolate: true,
 
-    // Retry failed tests
     retry: 0,
 
-    // Setup files to run before tests
     setupFiles: [],
 
-    // Dependencies to inline (necessary for some ESM modules)
     deps: {
       interopDefault: true,
     },
   },
 });
-
-

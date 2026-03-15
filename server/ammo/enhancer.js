@@ -13,19 +13,23 @@ function hostname(req) {
 }
 
 async function generatePayload(req) {
-  const obj = {};
+  const obj = Object.create(null);
 
-  const searchParams = new URLSearchParams(req.url.split('?')[1]);
+  const searchParams = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
   for (const [key, value] of searchParams) {
     obj[key] = value;
   }
 
   // Only parse body for methods that typically have a body
-  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'DELETE') {
+  if (
+    req.method !== 'GET' &&
+    req.method !== 'HEAD' &&
+    req.method !== 'DELETE'
+  ) {
     const body = await bodyParser(req);
     if (body) Object.assign(obj, body);
   }
-  
+
   return obj;
 }
 

@@ -1,21 +1,35 @@
-import * as fs from 'fs';
+/**
+ * @fileoverview Configuration loading and normalization utilities.
+ *
+ * Loads `tejas.config.json` from `process.cwd()` and provides helpers to
+ * standardize and flatten config objects so they can be merged with env vars
+ * and constructor options.
+ */
+
+import * as fs from 'node:fs';
 import { getAllEnv } from 'tej-env';
 
-const loadConfigFile = () => {
+/**
+ * Asynchronously read and parse `tejas.config.json` from the current working directory.
+ * Returns an empty null-prototype object if the file is missing or unreadable.
+ *
+ * @returns {Promise<Object>} Parsed config object (may be empty)
+ */
+const loadConfigFile = async () => {
   try {
-    const data = fs.readFileSync('tejas.config.json', 'utf8');
+    const data = await fs.promises.readFile('tejas.config.json', 'utf8');
     return JSON.parse(data);
   } catch (err) {
-    return {};
+    return Object.create(null);
   }
 };
 
 const keysToUpperCase = (obj) => {
-  if (!obj) return {};
-  const standardObj = {};
+  if (!obj) return Object.create(null);
+  const standardObj = Object.create(null);
 
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.hasOwn(obj, key)) {
       const value = obj[key];
       const upperKey = key.toUpperCase();
 
@@ -31,10 +45,10 @@ const keysToUpperCase = (obj) => {
 };
 
 const flattenObject = (obj, prefix = '') => {
-  let flattened = {};
+  let flattened = Object.create(null);
 
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.hasOwn(obj, key)) {
       const value = obj[key];
       const newKey = prefix ? `${prefix}_${key}` : key;
 

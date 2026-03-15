@@ -5,6 +5,9 @@
  */
 
 import { env } from 'tej-env';
+import TejLogger from 'tej-logger';
+
+const logger = new TejLogger('Tejas.ErrorsLlm');
 
 const MESSAGE_TYPES = /** @type {const} */ (['endUser', 'developer']);
 const LLM_MODES = /** @type {const} */ (['sync', 'async']);
@@ -134,7 +137,7 @@ export function getErrorsLlmConfig() {
       ? 3600000
       : cacheTTLNum;
 
-  return {
+  return Object.freeze({
     enabled: Boolean(enabled),
     baseURL: String(baseURL ?? '').trim(),
     apiKey: String(apiKey ?? '').trim(),
@@ -147,7 +150,7 @@ export function getErrorsLlmConfig() {
     rateLimit,
     cache,
     cacheTTL,
-  };
+  });
 }
 
 export { MESSAGE_TYPES, LLM_MODES, LLM_CHANNELS };
@@ -187,8 +190,8 @@ export function validateErrorsLlmAtTakeoff() {
     env('ERRORS_LLM_CHANNEL') ?? env('LLM_CHANNEL') ?? '',
   ).trim();
   if (mode === 'sync' && channelRaw) {
-    console.warn(
-      `[Tejas] errors.llm: channel="${channel}" is set but mode is "sync" — channel output only applies in async mode. Set ERRORS_LLM_MODE=async to use it.`,
+    logger.warn(
+      `errors.llm: channel="${channel}" is set but mode is "sync" — channel output only applies in async mode. Set ERRORS_LLM_MODE=async to use it.`,
     );
   }
 
@@ -200,15 +203,15 @@ export function validateErrorsLlmAtTakeoff() {
     rateLimitRaw &&
     (isNaN(Number(rateLimitRaw)) || Number(rateLimitRaw) <= 0)
   ) {
-    console.warn(
-      `[Tejas] errors.llm: rateLimit value "${rateLimitRaw}" is invalid; defaulting to 10.`,
+    logger.warn(
+      `errors.llm: rateLimit value "${rateLimitRaw}" is invalid; defaulting to 10.`,
     );
   }
 
   const cacheTTLRaw = String(env('ERRORS_LLM_CACHE_TTL') ?? '').trim();
   if (cacheTTLRaw && (isNaN(Number(cacheTTLRaw)) || Number(cacheTTLRaw) <= 0)) {
-    console.warn(
-      `[Tejas] errors.llm: cacheTTL value "${cacheTTLRaw}" is invalid; defaulting to 3600000.`,
+    logger.warn(
+      `errors.llm: cacheTTL value "${cacheTTLRaw}" is invalid; defaulting to 3600000.`,
     );
   }
 }

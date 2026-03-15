@@ -29,7 +29,7 @@ class LLMErrorCache {
     const snippet = codeContext?.snippets?.[0];
     const location = snippet ? `${snippet.file}:${snippet.line}` : 'unknown';
     let errText = '';
-    if (error instanceof Error) {
+    if (error != null && typeof error.message === 'string') {
       errText = error.message ?? '';
     } else if (error != null) {
       errText = String(error);

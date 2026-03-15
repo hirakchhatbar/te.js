@@ -58,7 +58,7 @@ class TargetRegistry {
     });
 
     if (exactMatch) {
-      return { target: exactMatch, params: {} };
+      return { target: exactMatch, params: Object.create(null) };
     }
 
     // Then, try parameterized route matching
@@ -104,7 +104,7 @@ class TargetRegistry {
       return null;
     }
 
-    const params = {};
+    const params = Object.create(null);
 
     // Match each segment
     for (let i = 0; i < patternSegments.length; i++) {
@@ -150,7 +150,7 @@ class TargetRegistry {
         if (!acc[group]) acc[group] = [];
         acc[group].push(target.getPath());
         return acc;
-      }, {});
+      }, Object.create(null));
     }
     return this.targets.map((target) => target.getPath());
   }
