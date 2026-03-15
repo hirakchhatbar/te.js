@@ -498,10 +498,10 @@ class Tejas {
    *                                         Note: the collector enforces its own non-bypassable masking
    *                                         layer server-side regardless of this setting.
    *
-   * @returns {Tejas} The Tejas instance for chaining
+   * @returns {Promise<Tejas>} The Tejas instance for chaining
    *
    * @example
-   * app.withRadar({ apiKey: process.env.RADAR_API_KEY });
+   * await app.withRadar({ apiKey: process.env.RADAR_API_KEY });
    * app.takeoff();
    *
    * @example
@@ -526,8 +526,8 @@ class Tejas {
    *   },
    * });
    */
-  withRadar(config = {}) {
-    this.midair(radarMiddleware(config));
+  async withRadar(config = {}) {
+    this.midair(await radarMiddleware(config));
     return this;
   }
 
