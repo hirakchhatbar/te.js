@@ -53,6 +53,13 @@ function rateLimiter(options) {
     );
   }
 
+  if (typeof store === 'object' && store.type === 'redis' && !store.url) {
+    throw new TejError(
+      400,
+      `Redis store requires a url. Provide store: { type: "redis", url: "redis://..." }`,
+    );
+  }
+
   const limiterConfig = Object.freeze({
     maxRequests: limiterOptions.maxRequests,
     timeWindowSeconds: limiterOptions.timeWindowSeconds,

@@ -400,7 +400,6 @@ export default {
   createExpressStyleMiddleware,
   sleep,
   waitFor,
-  createMockDbConnection,
   createMockFile,
   createMockStorage,
   assertResponse,
