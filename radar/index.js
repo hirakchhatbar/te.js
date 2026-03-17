@@ -139,10 +139,13 @@ async function radarMiddleware(config = {}) {
   );
 
   if (!apiKey) {
-    logger.warn(
-      'No API key provided (config.apiKey or RADAR_API_KEY). Radar telemetry disabled.',
-    );
-    return (_ammo, next) => next();
+    const mw = (_ammo, next) => next();
+    mw._radarStatus = {
+      feature: 'Radar',
+      ok: null,
+      detail: 'disabled (no API key)',
+    };
+    return mw;
   }
 
   const ingestUrl = `${collectorUrl}/ingest`;
@@ -153,21 +156,29 @@ async function radarMiddleware(config = {}) {
   let batch = [];
   let connected = false;
 
-  logger.info(`Checking Radar connectivity — ${collectorUrl}`);
-
+  /** @type {{ feature: string, ok: boolean, detail: string }} */
+  let radarStatus;
   try {
     const healthRes = await fetch(healthUrl);
     if (healthRes.ok) {
-      logger.info(`Radar collector reachable at ${collectorUrl}`);
+      radarStatus = {
+        feature: 'Radar',
+        ok: true,
+        detail: `connected (${collectorUrl})`,
+      };
     } else {
-      logger.warn(
-        `Radar collector responded with ${healthRes.status} on /health — check collector status.`,
-      );
+      radarStatus = {
+        feature: 'Radar',
+        ok: false,
+        detail: `collector returned ${healthRes.status} (${collectorUrl})`,
+      };
     }
   } catch (err) {
-    logger.warn(
-      `Radar collector unreachable at ${collectorUrl}: ${err.message}`,
-    );
+    radarStatus = {
+      feature: 'Radar',
+      ok: false,
+      detail: `unreachable (${collectorUrl})`,
+    };
   }
 
   async function flush() {
@@ -205,7 +216,7 @@ async function radarMiddleware(config = {}) {
   const timer = setInterval(flush, flushInterval);
   if (timer.unref) timer.unref();
 
-  return function radarCapture(ammo, next) {
+  function radarCapture(ammo, next) {
     const startTime = Date.now();
 
     ammo.res.on('finish', () => {
@@ -223,7 +234,6 @@ async function radarMiddleware(config = {}) {
           message: errorInfo.message ?? null,
           type: errorInfo.type ?? null,
           devInsight: errorInfo.devInsight ?? null,
-          codeContext: errorInfo.codeContext ?? null,
         });
       }
 
@@ -275,7 +285,10 @@ async function radarMiddleware(config = {}) {
     });
 
     next();
-  };
+  }
+
+  radarCapture._radarStatus = radarStatus;
+  return radarCapture;
 }
 
 export default radarMiddleware;

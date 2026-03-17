@@ -11,6 +11,7 @@ script.test.js
 
 # Cursor AI plans (local only)
 .cursor/plans/
+.cursor/
 
 #Ignore files and folders from the example folder
 example/.env
@@ -18,3 +19,5 @@ example/node_modules
 example/package-lock.json
 example/.idea
 example/uploads
+
+scripts/

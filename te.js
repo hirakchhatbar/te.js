@@ -14,15 +14,68 @@ import targetHandler from './server/handler.js';
 import {
   getErrorsLlmConfig,
   validateErrorsLlmAtTakeoff,
+  verifyLlmConnection,
 } from './utils/errors-llm-config.js';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { findTargetFiles } from './utils/auto-register.js';
 import { registerDocRoutes } from './auto-docs/ui/docs-ui.js';
 import TejError from './server/error.js';
 
 const logger = new TejLogger('Tejas');
+
+/**
+ * Read the framework's own package.json version.
+ * Resolves relative to the framework source, not the user's app.
+ * @returns {Promise<string>}
+ */
+async function readFrameworkVersion() {
+  try {
+    const dir = path.dirname(fileURLToPath(import.meta.url));
+    const raw = await readFile(path.join(dir, 'package.json'), 'utf8');
+    return JSON.parse(raw).version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** Format milliseconds into a compact human-readable string. */
+function fmtMs(ms) {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+}
+
+/**
+ * Create a live status line writer for startup progress.
+ * On TTY terminals, shows a dim "..." line that gets overwritten in-place
+ * when the step completes. On non-TTY (piped, CI), only prints the final result.
+ * @param {boolean} isTTY
+ */
+function statusLine(isTTY) {
+  let active = false;
+  return {
+    start(feature, message) {
+      if (!isTTY) return;
+      process.stdout.write(
+        `  ${feature.padEnd(14)}  \x1b[2m...\x1b[0m  \x1b[2m${message}\x1b[0m`,
+      );
+      active = true;
+    },
+    finish(feature, ok, detail) {
+      if (active) {
+        process.stdout.write('\r\x1b[K');
+        active = false;
+      }
+      const icon =
+        ok === true
+          ? '\x1b[32m\u2713\x1b[0m'
+          : ok === false
+            ? '\x1b[31m\u2717\x1b[0m'
+            : '\x1b[2m\u2014\x1b[0m';
+      process.stdout.write(`  ${feature.padEnd(14)}  ${icon}  ${detail}\n`);
+    },
+  };
+}
 
 /**
  * Performs a graceful shutdown: closes the HTTP server (if started), then exits.
@@ -233,32 +286,94 @@ class Tejas {
    * app.takeoff(); // Server starts on default port 1403
    */
   async takeoff({ withRedis, withMongo } = {}) {
+    const t0 = Date.now();
+
     // Load configuration first (async file read)
     await this.generateConfiguration();
 
+    // ── Startup banner ──────────────────────────────────────────────────
+    const version = await readFrameworkVersion();
+    const port = env('PORT');
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    const banner = [
+      '',
+      '  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      `  Tejas v${version}`,
+      `  Port:       ${port}`,
+      `  PID:        ${process.pid}`,
+      `  Node:       ${process.version}`,
+      `  Env:        ${nodeEnv}`,
+      '  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+    ].join('\n');
+    process.stdout.write(banner + '\n');
+
+    // ── Live feature status ────────────────────────────────────────────
+    const line = statusLine(process.stdout.isTTY);
+
+    // Radar (resolved during withRadar before takeoff — print immediately)
+    if (this._radarStatus) {
+      const s = this._radarStatus;
+      line.finish(s.feature, s.ok, s.detail);
+    }
+
+    // LLM Errors
     validateErrorsLlmAtTakeoff();
     const errorsLlm = getErrorsLlmConfig();
     if (errorsLlm.enabled) {
-      logger.info(
-        `errors.llm enabled successfully — baseURL: ${errorsLlm.baseURL}, model: ${errorsLlm.model}, messageType: ${errorsLlm.messageType}, apiKey: ${errorsLlm.apiKey ? '***' : '(missing)'}`,
-      );
+      if (errorsLlm.verifyOnStart) {
+        line.start('LLM Errors', 'verifying model...');
+        const result = await verifyLlmConnection();
+        line.finish('LLM Errors', result.status.ok, result.status.detail);
+      } else {
+        line.finish(
+          'LLM Errors',
+          true,
+          `enabled (${errorsLlm.model || 'default model'}, mode: ${errorsLlm.mode})`,
+        );
+      }
     }
 
     // Register target files before the server starts listening so no request
     // can arrive before all routes are fully registered.
     await this.registerTargetsDir();
 
-    this.engine = createServer(targetHandler);
-    this.engine.listen(env('PORT'), async () => {
-      logger.info(`Took off from port ${env('PORT')}`);
+    // ── Database connections (before listen) ─────────────────────────────
+    if (withRedis) {
+      line.start('Redis', 'connecting...');
+      try {
+        await this.withRedis(withRedis);
+        line.finish('Redis', true, 'connected');
+      } catch (err) {
+        line.finish('Redis', false, err.message);
+      }
+    }
 
-      if (withRedis) await this.withRedis(withRedis);
-      if (withMongo) await this.withMongo(withMongo);
+    if (withMongo) {
+      line.start('MongoDB', 'connecting...');
+      try {
+        await this.withMongo(withMongo);
+        line.finish('MongoDB', true, 'connected');
+      } catch (err) {
+        line.finish('MongoDB', false, err.message);
+      }
+    }
+
+    // ── Start HTTP server ───────────────────────────────────────────────
+    this.engine = createServer(targetHandler);
+
+    await new Promise((resolve) => {
+      this.engine.listen(port, resolve);
     });
 
     this.engine.on('error', (err) => {
       logger.error(`Server error: ${err}`);
     });
+
+    // ── Ready ───────────────────────────────────────────────────────────
+    process.stdout.write(
+      `\n  \x1b[32m\u2708  Ready on port ${port} in ${fmtMs(Date.now() - t0)}\x1b[0m\n\n`,
+    );
   }
 
   /**
@@ -369,6 +484,7 @@ class Tejas {
    * @param {number} [config.rateLimit] - Max LLM calls per minute across all requests (default 10)
    * @param {boolean} [config.cache] - Cache LLM results by throw site + error message to avoid repeated calls (default true)
    * @param {number} [config.cacheTTL] - How long cached results are reused in milliseconds (default 3600000 = 1 hour)
+   * @param {boolean} [config.verifyOnStart] - Send a test prompt to the LLM at startup to verify connectivity (default false)
    * @returns {Tejas} The Tejas instance for chaining
    *
    * @example
@@ -400,6 +516,8 @@ class Tejas {
       if (config.cache != null) setEnv('ERRORS_LLM_CACHE', config.cache);
       if (config.cacheTTL != null)
         setEnv('ERRORS_LLM_CACHE_TTL', config.cacheTTL);
+      if (config.verifyOnStart != null)
+        setEnv('ERRORS_LLM_VERIFY_ON_START', config.verifyOnStart);
     }
     return this;
   }
@@ -527,7 +645,11 @@ class Tejas {
    * });
    */
   async withRadar(config = {}) {
-    this.midair(await radarMiddleware(config));
+    const mw = await radarMiddleware(config);
+    if (mw._radarStatus) {
+      this._radarStatus = mw._radarStatus;
+    }
+    this.midair(mw);
     return this;
   }
 
