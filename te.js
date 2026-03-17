@@ -6,7 +6,6 @@ import corsMiddleware from './cors/index.js';
 import radarMiddleware from './radar/index.js';
 
 import targetRegistry from './server/targets/registry.js';
-import dbManager from './database/index.js';
 
 import { loadConfigFile, standardizeObj } from './utils/configuration.js';
 
@@ -14,15 +13,36 @@ import targetHandler from './server/handler.js';
 import {
   getErrorsLlmConfig,
   validateErrorsLlmAtTakeoff,
+  verifyLlmConnection,
 } from './utils/errors-llm-config.js';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { findTargetFiles } from './utils/auto-register.js';
 import { registerDocRoutes } from './auto-docs/ui/docs-ui.js';
 import TejError from './server/error.js';
 
 const logger = new TejLogger('Tejas');
+
+/**
+ * Read the framework's own package.json version.
+ * Resolves relative to the framework source, not the user's app.
+ * @returns {Promise<string>}
+ */
+async function readFrameworkVersion() {
+  try {
+    const dir = path.dirname(fileURLToPath(import.meta.url));
+    const raw = await readFile(path.join(dir, 'package.json'), 'utf8');
+    return JSON.parse(raw).version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** Format milliseconds into a compact human-readable string. */
+function fmtMs(ms) {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+}
 
 /**
  * Performs a graceful shutdown: closes the HTTP server (if started), then exits.
@@ -70,7 +90,7 @@ process.on('uncaughtException', (error) => {
  * @class
  * @description
  * Tejas is a Node.js framework for building powerful backend services.
- * It provides features like routing, middleware support, database connections,
+ * It provides features like routing, middleware support,
  * and automatic target (route) registration.
  */
 class Tejas {
@@ -83,13 +103,6 @@ class Tejas {
    * @param {boolean} [args.log.http_requests] - Whether to log incoming HTTP requests
    * @param {boolean} [args.log.exceptions] - Whether to log exceptions
    * @param {Object} [args.db] - Database configuration options
-   * @param {Object} [args.withRedis] - Redis connection configuration
-   * @param {boolean} [args.withRedis.isCluster=false] - Whether to use Redis Cluster
-   * @param {Object} [args.withRedis.socket] - Redis socket connection options
-   * @param {string} [args.withRedis.socket.host] - Redis server hostname
-   * @param {number} [args.withRedis.socket.port] - Redis server port
-   * @param {boolean} [args.withRedis.socket.tls] - Whether to use TLS for connection
-   * @param {string} [args.withRedis.url] - Redis connection URL (alternative to socket config)
    */
   constructor(args) {
     if (Tejas.instance) return Tejas.instance;
@@ -203,153 +216,96 @@ class Tejas {
   /**
    * Starts the Tejas server
    *
-   * @param {Object} [options] - Server configuration options
-   * @param {Object} [options.withRedis] - Redis connection options
-   * @param {Object} [options.withMongo] - MongoDB connection options (https://www.mongodb.com/docs/drivers/node/current/fundamentals/connection/)
    * @description
    * Creates and starts an HTTP server on the configured port.
-   * Optionally initializes Redis and/or MongoDB connections if configuration is provided.
-   * For Redis, accepts cluster flag and all connection options supported by node-redis package.
-   * For MongoDB, accepts all connection options supported by the official MongoDB Node.js driver.
    *
    * @example
    * const app = new Tejas();
-   *
-   * // Start server with Redis and MongoDB
-   * app.takeoff({
-   *   withRedis: {
-   *     url: 'redis://alice:foobared@awesome.redis.server:6380',
-   *     isCluster: false
-   *   },
-   *   withMongo: { url: 'mongodb://localhost:27017/mydatabase' }
-   * });
-   *
-   * // Start server with only Redis using defaults
-   * app.takeoff({
-   *   withRedis: { url: 'redis://localhost:6379' }
-   * });
-   *
-   * // Start server without databases
    * app.takeoff(); // Server starts on default port 1403
    */
-  async takeoff({ withRedis, withMongo } = {}) {
+  async takeoff() {
+    const t0 = Date.now();
+
     // Load configuration first (async file read)
     await this.generateConfiguration();
 
+    // ── Startup banner ──────────────────────────────────────────────────
+    const version = await readFrameworkVersion();
+    const port = env('PORT');
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    const banner = [
+      '',
+      '  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      `  Tejas v${version}`,
+      `  Port:       ${port}`,
+      `  PID:        ${process.pid}`,
+      `  Node:       ${process.version}`,
+      `  Env:        ${nodeEnv}`,
+      '  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+    ].join('\n');
+    process.stdout.write(banner + '\n');
+
+    // ── Feature status collector ────────────────────────────────────────
+    /** @type {Array<{ feature: string, ok: boolean|null, detail: string }>} */
+    const status = [];
+
+    // Radar — status is collected via the _radarStatus property set by withRadar/radarMiddleware
+    if (this._radarStatus) {
+      status.push(this._radarStatus);
+    }
+
+    // LLM Errors
     validateErrorsLlmAtTakeoff();
     const errorsLlm = getErrorsLlmConfig();
     if (errorsLlm.enabled) {
-      logger.info(
-        `errors.llm enabled successfully — baseURL: ${errorsLlm.baseURL}, model: ${errorsLlm.model}, messageType: ${errorsLlm.messageType}, apiKey: ${errorsLlm.apiKey ? '***' : '(missing)'}`,
-      );
+      if (errorsLlm.verifyOnStart) {
+        const result = await verifyLlmConnection();
+        status.push(result.status);
+      } else {
+        status.push({
+          feature: 'LLM Errors',
+          ok: true,
+          detail: `enabled (${errorsLlm.model || 'default model'}, mode: ${errorsLlm.mode})`,
+        });
+      }
     }
 
     // Register target files before the server starts listening so no request
     // can arrive before all routes are fully registered.
     await this.registerTargetsDir();
 
+    // ── Start HTTP server ───────────────────────────────────────────────
     this.engine = createServer(targetHandler);
-    this.engine.listen(env('PORT'), async () => {
-      logger.info(`Took off from port ${env('PORT')}`);
 
-      if (withRedis) await this.withRedis(withRedis);
-      if (withMongo) await this.withMongo(withMongo);
+    await new Promise((resolve) => {
+      this.engine.listen(port, resolve);
     });
 
     this.engine.on('error', (err) => {
       logger.error(`Server error: ${err}`);
     });
-  }
 
-  /**
-   * Initializes a Redis connection
-   *
-   * @param {Object} [config] - Redis connection configuration
-   * @param {boolean} [config.isCluster=false] - Whether to use Redis Cluster
-   * @param {Object} [config.socket] - Redis socket connection options
-   * @param {string} [config.socket.host] - Redis server hostname
-   * @param {number} [config.socket.port] - Redis server port
-   * @param {boolean} [config.socket.tls] - Whether to use TLS for connection
-   * @param {string} [config.url] - Redis connection URL (alternative to socket config)
-   * @returns {Promise<Tejas>} Returns a Promise that resolves to this instance for chaining
-   *
-   * @example
-   * // Initialize Redis with URL
-   * await app.withRedis({
-   *   url: 'redis://localhost:6379'
-   * }).withRateLimit({
-   *   maxRequests: 100,
-   *   store: 'redis'
-   * });
-   *
-   * @example
-   * // Initialize Redis with socket options
-   * await app.withRedis({
-   *   socket: {
-   *     host: 'localhost',
-   *     port: 6379
-   *   }
-   * });
-   */
-  async withRedis(config) {
-    if (config) {
-      await dbManager.initializeConnection('redis', config);
-    } else {
-      logger.warn(
-        'No Redis configuration provided. Skipping Redis connection.',
-      );
+    // ── Ready summary ───────────────────────────────────────────────────
+    const elapsed = Date.now() - t0;
+
+    if (status.length > 0) {
+      const maxLen = Math.max(...status.map((s) => s.feature.length));
+      const lines = status.map((s) => {
+        const icon =
+          s.ok === true
+            ? '\x1b[32m✓\x1b[0m'
+            : s.ok === false
+              ? '\x1b[31m✗\x1b[0m'
+              : '\x1b[2m—\x1b[0m';
+        return `  ${s.feature.padEnd(maxLen)}  ${icon}  ${s.detail}`;
+      });
+      process.stdout.write('\n' + lines.join('\n') + '\n');
     }
 
-    return this;
-  }
-
-  /**
-   * Initializes a MongoDB connection
-   *
-   * @param {Object} [config] - MongoDB connection configuration
-   * @param {string} [config.uri] - MongoDB connection URI
-   * @param {Object} [config.options] - Additional MongoDB connection options
-   * @returns {Tejas} Returns a Promise that resolves to this instance for chaining
-   *
-   * @example
-   * // Initialize MongoDB with URI
-   * await app.withMongo({
-   *   uri: 'mongodb://localhost:27017/myapp'
-   * });
-   *
-   * @example
-   * // Initialize MongoDB with options
-   * await app.withMongo({
-   *   uri: 'mongodb://localhost:27017/myapp',
-   *   options: {
-   *     useNewUrlParser: true,
-   *     useUnifiedTopology: true
-   *   }
-   * });
-   *
-   * @example
-   * // Chain database connections
-   * await app
-   *   .withMongo({
-   *     uri: 'mongodb://localhost:27017/myapp'
-   *   })
-   *   .withRedis({
-   *     url: 'redis://localhost:6379'
-   *   })
-   *   .withRateLimit({
-   *     maxRequests: 100,
-   *     store: 'redis'
-   *   });
-   */
-  withMongo(config) {
-    if (config) {
-      dbManager.initializeConnection('mongodb', config);
-    } else {
-      logger.warn(
-        'No MongoDB configuration provided. Skipping MongoDB connection.',
-      );
-    }
-    return this;
+    process.stdout.write(
+      `\n  \x1b[32m✈  Ready on port ${port} in ${fmtMs(elapsed)}\x1b[0m\n\n`,
+    );
   }
 
   /**
@@ -369,6 +325,7 @@ class Tejas {
    * @param {number} [config.rateLimit] - Max LLM calls per minute across all requests (default 10)
    * @param {boolean} [config.cache] - Cache LLM results by throw site + error message to avoid repeated calls (default true)
    * @param {number} [config.cacheTTL] - How long cached results are reused in milliseconds (default 3600000 = 1 hour)
+   * @param {boolean} [config.verifyOnStart] - Send a test prompt to the LLM at startup to verify connectivity (default false)
    * @returns {Tejas} The Tejas instance for chaining
    *
    * @example
@@ -400,6 +357,8 @@ class Tejas {
       if (config.cache != null) setEnv('ERRORS_LLM_CACHE', config.cache);
       if (config.cacheTTL != null)
         setEnv('ERRORS_LLM_CACHE_TTL', config.cacheTTL);
+      if (config.verifyOnStart != null)
+        setEnv('ERRORS_LLM_VERIFY_ON_START', config.verifyOnStart);
     }
     return this;
   }
@@ -411,8 +370,10 @@ class Tejas {
    * @param {number} [config.maxRequests=60] - Maximum number of requests allowed in the time window
    * @param {number} [config.timeWindowSeconds=60] - Time window in seconds
    * @param {string} [config.algorithm='sliding-window'] - Rate-limiting algorithm ('token-bucket', 'sliding-window', or 'fixed-window')
+   * @param {string|Object} [config.store='memory'] - Storage backend: 'memory' (default) or
+   *   { type: 'redis', url: 'redis://...', ...redisOptions } for distributed deployments.
+   *   In-memory storage is not shared across processes and may be inaccurate in distributed setups.
    * @param {Object} [config.algorithmOptions] - Algorithm-specific options
-   * @param {Object} [config.redis] - Redis configuration for distributed rate limiting
    * @param {Function} [config.keyGenerator] - Function to generate unique identifiers (defaults to IP-based)
    * @param {Object} [config.headerFormat] - Rate limit header format configuration
    * @returns {Tejas} The Tejas instance for chaining
@@ -527,7 +488,11 @@ class Tejas {
    * });
    */
   async withRadar(config = {}) {
-    this.midair(await radarMiddleware(config));
+    const mw = await radarMiddleware(config);
+    if (mw._radarStatus) {
+      this._radarStatus = mw._radarStatus;
+    }
+    this.midair(mw);
     return this;
   }
 

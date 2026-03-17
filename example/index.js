@@ -8,7 +8,7 @@ app.midair((ammo, next) => {
   next();
 });
 
-// Rate limiting (memory store - no Redis required)
+// Rate limiting
 app.withRateLimit({
   maxRequests: 60,
   timeWindowSeconds: 60,
@@ -17,13 +17,4 @@ app.withRateLimit({
 // Serve API docs at /docs (requires openapi.json from `tejas generate:docs`)
 app.serveDocs({ specPath: './openapi.json' });
 
-// Optional: Redis for /cache endpoints. Set REDIS_URL to enable.
-const redisUrl = process.env.REDIS_URL;
-
-app.takeoff(
-  redisUrl
-    ? {
-        withRedis: { url: redisUrl },
-      }
-    : {},
-);
+app.takeoff();

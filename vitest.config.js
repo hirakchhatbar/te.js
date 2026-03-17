@@ -10,7 +10,6 @@ export default defineConfig({
       'tests/**/*.test.js',
       'server/**/*.test.js',
       'rate-limit/**/*.test.js',
-      'database/**/*.test.js',
       'utils/**/*.test.js',
       'cors/**/*.test.js',
       'radar/**/*.test.js',
@@ -26,12 +25,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: [
-        'server/**/*.js',
-        'database/**/*.js',
-        'rate-limit/**/*.js',
-        'utils/**/*.js',
-      ],
+      include: ['server/**/*.js', 'rate-limit/**/*.js', 'utils/**/*.js'],
       exclude: [
         'node_modules/**',
         'tests/**',

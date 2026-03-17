@@ -18,8 +18,7 @@ Welcome to the documentation for **Tejas** — a Node.js framework for building 
 
 ### Features
 
-- [Database Integration](./database.md) — Redis and MongoDB connections with auto-install
-- [Rate Limiting](./rate-limiting.md) — Three algorithms, two storage backends, custom headers
+- [Rate Limiting](./rate-limiting.md) — Three algorithms, memory or Redis storage, custom headers
 - [File Uploads](./file-uploads.md) — Single and multiple file handling with validation
 
 ### Tooling

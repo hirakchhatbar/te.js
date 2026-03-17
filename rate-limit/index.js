@@ -2,7 +2,6 @@ import TejError from '../server/error.js';
 import FixedWindowRateLimiter from './algorithms/fixed-window.js';
 import SlidingWindowRateLimiter from './algorithms/sliding-window.js';
 import TokenBucketRateLimiter from './algorithms/token-bucket.js';
-import dbManager from '../database/index.js';
 
 /**
  * Creates a rate limiting middleware function with the specified algorithm and storage
@@ -14,9 +13,11 @@ import dbManager from '../database/index.js';
  *                                                     - 'token-bucket': Best for handling traffic bursts
  *                                                     - 'sliding-window': Best for smooth rate limiting
  *                                                     - 'fixed-window': Simplest approach
- * @param {string} [options.store='memory'] - Storage backend to use:
- *                                         - 'memory': In-memory storage (default)
- *                                         - 'redis': Redis-based storage (requires global Redis config)
+ * @param {string|Object} [options.store='memory'] - Storage backend to use:
+ *                                         - 'memory': In-memory storage (default, single-instance only)
+ *                                         - { type: 'redis', url: 'redis://...' }: Redis storage for distributed deployments.
+ *                                           The redis npm package is auto-installed on first use.
+ *                                           Any extra properties are forwarded to node-redis createClient.
  * @param {Object} [options.algorithmOptions] - Algorithm-specific options
  * @param {Function} [options.keyGenerator] - Optional function to generate unique identifiers
  * @param {Object} [options.headerFormat] - Rate limit header format configuration
@@ -38,14 +39,6 @@ function rateLimiter(options) {
     onRateLimited,
     ...limiterOptions
   } = options;
-
-  // Check Redis connectivity if Redis store is selected
-  if (store === 'redis' && !dbManager.hasConnection('redis', {})) {
-    throw new TejError(
-      400,
-      'Redis store selected but no Redis connection found. Please use withRedis() before using withRateLimit()',
-    );
-  }
 
   const configMap = Object.create(null);
   configMap['token-bucket'] = 'tokenBucketConfig';
