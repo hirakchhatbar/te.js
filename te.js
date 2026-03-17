@@ -16,33 +16,14 @@ import {
   verifyLlmConnection,
 } from './utils/errors-llm-config.js';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
+import { readFrameworkVersion, fmtMs, statusLine } from './utils/startup.js';
 import { findTargetFiles } from './utils/auto-register.js';
 import { registerDocRoutes } from './auto-docs/ui/docs-ui.js';
 import TejError from './server/error.js';
 
 const logger = new TejLogger('Tejas');
-
-/**
- * Read the framework's own package.json version.
- * Resolves relative to the framework source, not the user's app.
- * @returns {Promise<string>}
- */
-async function readFrameworkVersion() {
-  try {
-    const dir = path.dirname(fileURLToPath(import.meta.url));
-    const raw = await readFile(path.join(dir, 'package.json'), 'utf8');
-    return JSON.parse(raw).version ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
-/** Format milliseconds into a compact human-readable string. */
-function fmtMs(ms) {
-  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
-}
 
 /**
  * Performs a graceful shutdown: closes the HTTP server (if started), then exits.
@@ -246,65 +227,39 @@ class Tejas {
     ].join('\n');
     process.stdout.write(banner + '\n');
 
-    // ── Feature status collector ────────────────────────────────────────
-    /** @type {Array<{ feature: string, ok: boolean|null, detail: string }>} */
-    const status = [];
+    // ── Live feature status ────────────────────────────────────────────
+    const line = statusLine(process.stdout.isTTY);
 
-    // Radar — status is collected via the _radarStatus property set by withRadar/radarMiddleware
     if (this._radarStatus) {
-      status.push(this._radarStatus);
+      const s = this._radarStatus;
+      line.finish(s.feature, s.ok, s.detail);
     }
 
-    // LLM Errors
     validateErrorsLlmAtTakeoff();
     const errorsLlm = getErrorsLlmConfig();
     if (errorsLlm.enabled) {
       if (errorsLlm.verifyOnStart) {
+        line.start('LLM Errors', 'verifying model...');
         const result = await verifyLlmConnection();
-        status.push(result.status);
+        line.finish('LLM Errors', result.status.ok, result.status.detail);
       } else {
-        status.push({
-          feature: 'LLM Errors',
-          ok: true,
-          detail: `enabled (${errorsLlm.model || 'default model'}, mode: ${errorsLlm.mode})`,
-        });
+        line.finish(
+          'LLM Errors',
+          true,
+          `enabled (${errorsLlm.model || 'default model'}, mode: ${errorsLlm.mode})`,
+        );
       }
     }
 
-    // Register target files before the server starts listening so no request
-    // can arrive before all routes are fully registered.
     await this.registerTargetsDir();
 
     // ── Start HTTP server ───────────────────────────────────────────────
     this.engine = createServer(targetHandler);
-
-    await new Promise((resolve) => {
-      this.engine.listen(port, resolve);
-    });
-
-    this.engine.on('error', (err) => {
-      logger.error(`Server error: ${err}`);
-    });
-
-    // ── Ready summary ───────────────────────────────────────────────────
-    const elapsed = Date.now() - t0;
-
-    if (status.length > 0) {
-      const maxLen = Math.max(...status.map((s) => s.feature.length));
-      const lines = status.map((s) => {
-        const icon =
-          s.ok === true
-            ? '\x1b[32m✓\x1b[0m'
-            : s.ok === false
-              ? '\x1b[31m✗\x1b[0m'
-              : '\x1b[2m—\x1b[0m';
-        return `  ${s.feature.padEnd(maxLen)}  ${icon}  ${s.detail}`;
-      });
-      process.stdout.write('\n' + lines.join('\n') + '\n');
-    }
+    await new Promise((resolve) => this.engine.listen(port, resolve));
+    this.engine.on('error', (err) => logger.error(`Server error: ${err}`));
 
     process.stdout.write(
-      `\n  \x1b[32m✈  Ready on port ${port} in ${fmtMs(elapsed)}\x1b[0m\n\n`,
+      `\n  \x1b[32m\u2708  Ready on port ${port} in ${fmtMs(Date.now() - t0)}\x1b[0m\n\n`,
     );
   }
 
