@@ -275,7 +275,7 @@ class Tejas {
    * @param {string} [config.model] - Model name (e.g. gpt-4o-mini)
    * @param {'endUser'|'developer'} [config.messageType] - Default message tone
    * @param {'sync'|'async'} [config.mode] - 'sync' blocks the response until LLM returns (default); 'async' responds immediately with 500 and dispatches LLM result to a channel
-   * @param {number} [config.timeout] - LLM fetch timeout in milliseconds (default 10000)
+   * @param {number} [config.timeout] - LLM fetch timeout in milliseconds (default 20000)
    * @param {'console'|'log'|'both'} [config.channel] - Output channel for async mode results (default 'console')
    * @param {string} [config.logFile] - Path to JSONL log file used by 'log' and 'both' channels (default './errors.llm.log')
    * @param {number} [config.rateLimit] - Max LLM calls per minute across all requests (default 10)

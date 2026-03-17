@@ -107,7 +107,7 @@ export function getErrorsLlmConfig() {
   const timeoutRaw = env('ERRORS_LLM_TIMEOUT') ?? env('LLM_TIMEOUT') ?? '';
   const timeoutNum = Number(timeoutRaw);
   const timeout =
-    !timeoutRaw || isNaN(timeoutNum) || timeoutNum <= 0 ? 10000 : timeoutNum;
+    !timeoutRaw || isNaN(timeoutNum) || timeoutNum <= 0 ? 20000 : timeoutNum;
 
   const channelRaw = env('ERRORS_LLM_CHANNEL') ?? env('LLM_CHANNEL') ?? '';
 
