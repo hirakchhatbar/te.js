@@ -27,7 +27,8 @@ const logger = new TejLogger('Tejas');
 
 /**
  * Performs a graceful shutdown: closes the HTTP server (if started), then exits.
- * Invoked by process-level fatal error handlers.
+ * Invoked by process-level fatal error handlers. This is used to ensure that the server is closed properly
+ * when the process is terminated.
  * @param {number} [exitCode=1]
  */
 async function gracefulShutdown(exitCode = 1) {
