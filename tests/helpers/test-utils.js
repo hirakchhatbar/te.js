@@ -1,5 +1,9 @@
 import { vi } from 'vitest';
-import { createMockRequest, createMockResponse, createMockPair } from './mock-http.js';
+import {
+  createMockRequest,
+  createMockResponse,
+  createMockPair,
+} from './mock-http.js';
 
 /**
  * Create an Ammo instance with mocked request/response
@@ -59,7 +63,7 @@ export function createTestRegistry() {
     globalMiddlewares: [],
     addGlobalMiddleware(...middlewares) {
       const validMiddlewares = middlewares.filter(
-        (m) => typeof m === 'function'
+        (m) => typeof m === 'function',
       );
       this.globalMiddlewares = this.globalMiddlewares.concat(validMiddlewares);
     },
@@ -71,13 +75,14 @@ export function createTestRegistry() {
       }
     },
     aim(endpoint) {
-      const standardizedEndpoint = endpoint.endsWith('/') && endpoint !== '/'
-        ? endpoint.slice(0, -1)
-        : endpoint;
+      const standardizedEndpoint =
+        endpoint.endsWith('/') && endpoint !== '/'
+          ? endpoint.slice(0, -1)
+          : endpoint;
 
       // Exact match
       const exactMatch = this.targets.find(
-        (target) => target.getPath() === standardizedEndpoint
+        (target) => target.getPath() === standardizedEndpoint,
       );
       if (exactMatch) {
         return { target: exactMatch, params: {} };
@@ -87,7 +92,7 @@ export function createTestRegistry() {
       for (const target of this.targets) {
         const params = this.matchParameterizedRoute(
           target.getPath(),
-          standardizedEndpoint
+          standardizedEndpoint,
         );
         if (params !== null) {
           return { target, params };
@@ -257,46 +262,6 @@ export async function waitFor(condition, options = {}) {
 }
 
 /**
- * Create a mock database connection for testing
- * @param {string} type - Database type (mongodb, redis)
- * @returns {Object} Mock database connection
- */
-export function createMockDbConnection(type = 'mongodb') {
-  const mockConnection = {
-    type,
-    isConnected: true,
-    close: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    insert: vi.fn().mockResolvedValue({ insertedId: 'mock-id' }),
-    update: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
-    delete: vi.fn().mockResolvedValue({ deletedCount: 1 }),
-  };
-
-  if (type === 'mongodb') {
-    mockConnection.collection = vi.fn(() => ({
-      find: vi.fn().mockReturnValue({
-        toArray: vi.fn().mockResolvedValue([]),
-      }),
-      findOne: vi.fn().mockResolvedValue(null),
-      insertOne: vi.fn().mockResolvedValue({ insertedId: 'mock-id' }),
-      updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
-      deleteOne: vi.fn().mockResolvedValue({ deletedCount: 1 }),
-    }));
-  }
-
-  if (type === 'redis') {
-    mockConnection.get = vi.fn().mockResolvedValue(null);
-    mockConnection.set = vi.fn().mockResolvedValue('OK');
-    mockConnection.del = vi.fn().mockResolvedValue(1);
-    mockConnection.exists = vi.fn().mockResolvedValue(0);
-    mockConnection.expire = vi.fn().mockResolvedValue(1);
-    mockConnection.ttl = vi.fn().mockResolvedValue(-1);
-  }
-
-  return mockConnection;
-}
-
-/**
  * Create a mock file object for upload tests
  * @param {Object} options - File options
  * @returns {Object} Mock file object
@@ -356,7 +321,7 @@ export function assertResponse(res, expectedStatus, expectedBody) {
   if (expectedStatus !== undefined) {
     if (res.statusCode !== expectedStatus) {
       throw new Error(
-        `Expected status ${expectedStatus}, got ${res.statusCode}. Body: ${res.getBody()}`
+        `Expected status ${expectedStatus}, got ${res.statusCode}. Body: ${res.getBody()}`,
       );
     }
   }
@@ -367,7 +332,7 @@ export function assertResponse(res, expectedStatus, expectedBody) {
       const jsonBody = res.getJsonBody();
       if (JSON.stringify(jsonBody) !== JSON.stringify(expectedBody)) {
         throw new Error(
-          `Body mismatch. Expected: ${JSON.stringify(expectedBody)}, Got: ${JSON.stringify(jsonBody)}`
+          `Body mismatch. Expected: ${JSON.stringify(expectedBody)}, Got: ${JSON.stringify(jsonBody)}`,
         );
       }
     } else if (body !== expectedBody) {
@@ -442,5 +407,3 @@ export default {
   mockConsole,
   captureResponse,
 };
-
-

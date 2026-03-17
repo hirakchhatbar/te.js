@@ -68,6 +68,7 @@ function normalizeChannel(v) {
  *   rateLimit: number,
  *   cache: boolean,
  *   cacheTTL: number,
+ *   verifyOnStart: boolean,
  * }}
  */
 export function getErrorsLlmConfig() {
@@ -137,6 +138,13 @@ export function getErrorsLlmConfig() {
       ? 3600000
       : cacheTTLNum;
 
+  const verifyOnStartRaw = env('ERRORS_LLM_VERIFY_ON_START') ?? '';
+  const verifyOnStart =
+    verifyOnStartRaw === true ||
+    verifyOnStartRaw === 'true' ||
+    verifyOnStartRaw === '1' ||
+    verifyOnStartRaw === 1;
+
   return Object.freeze({
     enabled: Boolean(enabled),
     baseURL: String(baseURL ?? '').trim(),
@@ -150,10 +158,53 @@ export function getErrorsLlmConfig() {
     rateLimit,
     cache,
     cacheTTL,
+    verifyOnStart,
   });
 }
 
 export { MESSAGE_TYPES, LLM_MODES, LLM_CHANNELS };
+
+/**
+ * Fire a lightweight probe to the configured LLM provider and verify it
+ * responds correctly. Intended to run once at takeoff when `verifyOnStart: true`.
+ *
+ * Never throws — a flaky provider does not prevent the server from starting.
+ *
+ * @returns {Promise<{ ok: boolean, status: { feature: string, ok: boolean, detail: string } }>}
+ */
+export async function verifyLlmConnection() {
+  const { baseURL, apiKey, model, timeout, mode } = getErrorsLlmConfig();
+
+  const { createProvider } = await import('../lib/llm/index.js');
+  const provider = createProvider({ baseURL, apiKey, model, timeout });
+
+  const shortModel = model.split('/').pop().split(':')[0] || model;
+  const start = Date.now();
+  try {
+    const { content } = await provider.analyze(
+      'Respond with only the JSON object {"status":"ok"}. No explanation.',
+    );
+    const elapsed = Date.now() - start;
+
+    if (content.includes('"ok"')) {
+      return {
+        ok: true,
+        status: { feature: 'LLM Errors', ok: true, detail: `verified (${shortModel}, ${elapsed}ms, mode: ${mode})` },
+      };
+    }
+
+    return {
+      ok: false,
+      status: { feature: 'LLM Errors', ok: false, detail: `unexpected response from ${shortModel} (${elapsed}ms)` },
+    };
+  } catch (err) {
+    const elapsed = Date.now() - start;
+    return {
+      ok: false,
+      status: { feature: 'LLM Errors', ok: false, detail: `${err.message} (${elapsed}ms)` },
+    };
+  }
+}
 
 /**
  * Validate errors.llm when enabled: require baseURL, apiKey, and model (after LLM_ fallback).

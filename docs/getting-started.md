@@ -8,7 +8,7 @@ Tejas is a lightweight Node.js framework for building powerful backend services.
 - **Zero-Config Error Handling** — No try-catch needed! Tejas catches all errors automatically
 - **Clean, Readable Code** — Aviation-inspired naming makes code self-documenting
 - **Express Compatible** — Use your existing Express middleware
-- **Built-in Features** — Rate limiting, file uploads, database connections out of the box
+- **Built-in Features** — Rate limiting, file uploads out of the box
 
 ## AI-Assisted Setup (MCP) — Recommended
 
@@ -35,9 +35,9 @@ The fastest way to start building with Tejas is through your AI assistant. The *
 
 Once connected, prompt your assistant naturally:
 
-- *"Scaffold a new te.js project called my-api on port 5000"*
-- *"Create a REST API with user CRUD routes using te.js"*
-- *"Add a /health endpoint that returns system uptime"*
+- _"Scaffold a new te.js project called my-api on port 5000"_
+- _"Create a REST API with user CRUD routes using te.js"_
+- _"Add a /health endpoint that returns system uptime"_
 
 The MCP server provides these tools: `scaffold_project`, `generate_target`, `generate_app_entry`, `generate_config`, `get_documentation`, and `search_docs`.
 
@@ -101,15 +101,15 @@ Your server is now running on `http://localhost:1403`
 
 Tejas uses aviation-inspired naming:
 
-| Term | Express Equivalent | Description |
-|------|-------------------|-------------|
-| `Tejas` | `express()` | Main application instance |
-| `Target` | `Router` | Route grouping |
-| `Ammo` | `req` + `res` | Request/response wrapper |
-| `fire()` | `res.send()` | Send response |
-| `throw()` | Error response | Send error |
-| `midair()` | `use()` | Register middleware |
-| `takeoff()` | `listen()` | Start server |
+| Term        | Express Equivalent | Description               |
+| ----------- | ------------------ | ------------------------- |
+| `Tejas`     | `express()`        | Main application instance |
+| `Target`    | `Router`           | Route grouping            |
+| `Ammo`      | `req` + `res`      | Request/response wrapper  |
+| `fire()`    | `res.send()`       | Send response             |
+| `throw()`   | Error response     | Send error                |
+| `midair()`  | `use()`            | Register middleware       |
+| `takeoff()` | `listen()`         | Start server              |
 
 ### Basic Structure
 
@@ -150,7 +150,7 @@ Your application never crashes from unhandled exceptions, and clients always rec
 - [Routing](./routing.md) — Deep dive into the Target-based routing system
 - [Ammo](./ammo.md) — Master request/response handling
 - [Middleware](./middleware.md) — Global, target, and route-level middleware
-- [Database](./database.md) — Connect to MongoDB or Redis
+
 - [Error Handling](./error-handling.md) — Zero-config error handling
 - [CLI Reference](./cli.md) — `tejas fly` and doc generation commands
 - [Auto-Documentation](./auto-docs.md) — Generate OpenAPI specs from your code
@@ -166,8 +166,8 @@ const app = new Tejas({
   port: 3000,
   log: {
     http_requests: true,
-    exceptions: true
-  }
+    exceptions: true,
+  },
 });
 
 // Global middleware
@@ -179,13 +179,11 @@ app.midair((ammo, next) => {
 // Rate limiting (in-memory)
 app.withRateLimit({
   maxRequests: 100,
-  timeWindowSeconds: 60
+  timeWindowSeconds: 60,
 });
 
-// Start with optional Redis
-app.takeoff({
-  withRedis: { url: 'redis://localhost:6379' }
-});
+// Start the server
+app.takeoff();
 ```
 
 ```javascript

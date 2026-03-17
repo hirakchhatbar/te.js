@@ -1,6 +1,6 @@
 # te.js Example
 
-A comprehensive example demonstrating te.js framework features: routing, middleware, rate limiting, file uploads, services, and optional Redis caching.
+A comprehensive example demonstrating te.js framework features: routing, middleware, rate limiting, file uploads, and services.
 
 ## Quick Start
 
@@ -18,11 +18,9 @@ example/
 ├── index.js              # App setup, global middleware, rate limit
 ├── targets/              # Routes + handlers
 │   ├── index.target.js   # /, /health, /routes
-│   ├── users.target.js   # CRUD + file uploads (/users, /users/:id, …)
-│   └── cache.target.js   # Redis key-value (optional)
+│   └── users.target.js   # CRUD + file uploads (/users, /users/:id, …)
 └── services/             # Business logic
-    ├── user.service.js  # In-memory user CRUD
-    └── cache.service.js # Redis wrapper
+    └── user.service.js  # In-memory user CRUD
 ```
 
 ## Endpoints
@@ -49,20 +47,13 @@ example/
 
 ### Errors (LLM-inferred when `errors.llm.enabled`)
 
-| Method | Path             | Description                                                |
-| ------ | ---------------- | ---------------------------------------------------------- |
-| GET    | `/errors/throw`  | Explicit `ammo.throw()` with no args — LLM infers from code context |
-| GET    | `/errors/crash`  | Throws an error — framework catches and uses same `ammo.throw(err)` |
-| GET    | `/errors/explicit` | Explicit `ammo.throw(400, 'Bad request')` — LLM not used |
+| Method | Path               | Description                                                         |
+| ------ | ------------------ | ------------------------------------------------------------------- |
+| GET    | `/errors/throw`    | Explicit `ammo.throw()` with no args — LLM infers from code context |
+| GET    | `/errors/crash`    | Throws an error — framework catches and uses same `ammo.throw(err)` |
+| GET    | `/errors/explicit` | Explicit `ammo.throw(400, 'Bad request')` — LLM not used            |
 
 Requires `errors.llm.enabled` and `LLM_*` (or `ERRORS_LLM_*`) env vars: baseURL, apiKey, model.
-
-### Cache (requires Redis)
-
-| Method | Path          | Description                        |
-| ------ | ------------- | ---------------------------------- |
-| GET    | `/cache/:key` | Get value                          |
-| POST   | `/cache`      | Set value (body: key, value, ttl?) |
 
 ## curl Examples
 
@@ -91,28 +82,6 @@ curl http://localhost:1403/errors/throw
 curl http://localhost:1403/errors/crash
 curl http://localhost:1403/errors/explicit
 
-# Cache (requires REDIS_URL)
-REDIS_URL=redis://localhost:6379 npm start
-curl -X POST http://localhost:1403/cache -H "Content-Type: application/json" -d '{"key":"foo","value":"bar","ttl":60}'
-curl http://localhost:1403/cache/foo
-```
-
-## Optional: Redis
-
-To enable cache endpoints:
-
-```bash
-npm run start:redis
-```
-
-Or set `REDIS_URL` before starting:
-
-```bash
-# Linux/macOS
-REDIS_URL=redis://localhost:6379 npm start
-
-# Windows (PowerShell)
-$env:REDIS_URL="redis://localhost:6379"; npm start
 ```
 
 ## Features Demonstrated
