@@ -278,7 +278,6 @@ class Tejas {
     // ── Start HTTP server ───────────────────────────────────────────────
     this.engine = createServer(targetHandler);
 
-
     await new Promise((resolve) => {
       this.engine.listen(port, resolve);
     });

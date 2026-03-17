@@ -188,7 +188,6 @@ async function radarMiddleware(config = {}) {
 
   const send = config.transport ?? defaultHttpTransport;
 
-
   /** @type {{ feature: string, ok: boolean, detail: string }} */
   let radarStatus;
   try {
