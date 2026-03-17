@@ -95,6 +95,22 @@ function parseJsonSafe(raw) {
   }
 }
 
+const MAX_JSON_BLOB = 8 * 1024;
+
+/**
+ * Return `value` if its JSON-serialised size fits within the collector's
+ * per-field blob limit, otherwise `null`.  Prevents oversized request/response
+ * bodies from causing 422 rejections that drop the entire batch.
+ */
+function capJsonBlob(value) {
+  if (value == null) return null;
+  try {
+    return JSON.stringify(value).length <= MAX_JSON_BLOB ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Factory that returns a te.js-compatible `(ammo, next)` middleware which
  * captures HTTP request metrics and forwards them to the Tejas Radar collector.
@@ -294,12 +310,14 @@ async function radarMiddleware(config = {}) {
       const responseSize = Buffer.byteLength(ammo.dispatchedData ?? '', 'utf8');
       const ip = ammo.ip ?? null;
       const userAgent = ammo.headers?.['user-agent'] ?? null;
-      const headers = buildHeaders(ammo.headers, capture.headers);
+      const headers = capJsonBlob(buildHeaders(ammo.headers, capture.headers));
       const requestBody = capture.request
-        ? deepMask(ammo.payload ?? null, clientMaskBlocklist)
+        ? capJsonBlob(deepMask(ammo.payload ?? null, clientMaskBlocklist))
         : null;
       const responseBody = capture.response
-        ? deepMask(parseJsonSafe(ammo.dispatchedData), clientMaskBlocklist)
+        ? capJsonBlob(
+            deepMask(parseJsonSafe(ammo.dispatchedData), clientMaskBlocklist),
+          )
         : null;
 
       function pushEvents() {
