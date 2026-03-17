@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 const gzipAsync = promisify(gzip);
 import { AsyncLocalStorage } from 'node:async_hooks';
 import TejLogger from 'tej-logger';
+import { getErrorsLlmConfig } from '../utils/errors-llm-config.js';
 
 const logger = new TejLogger('Tejas.Radar');
 
@@ -329,6 +330,7 @@ async function radarMiddleware(config = {}) {
             message: errorInfo.message ?? null,
             type: errorInfo.type ?? null,
             devInsight: errorInfo.devInsight ?? null,
+            llmEnabled: getErrorsLlmConfig().enabled,
           });
         }
 
