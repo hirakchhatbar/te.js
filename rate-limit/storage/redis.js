@@ -1,87 +1,129 @@
 import RateLimitStorage from './base.js';
+import { checkRedisInstallation, installRedisSync } from './redis-install.js';
+import TejLogger from 'tej-logger';
+
+const logger = new TejLogger('RedisStorage');
 
 /**
- * Redis storage implementation for rate limiting
+ * Redis-backed storage implementation for rate limiting.
+ *
+ * Suitable for distributed / multi-instance deployments where rate-limit
+ * counters must be shared across processes.
+ *
+ * The `redis` npm package is auto-installed into the consuming project
+ * on first use if it is not already present.
  *
  * @extends RateLimitStorage
- * @description
- * This storage backend uses Redis for distributed rate limiting across multiple application instances.
- * It's the recommended storage backend for production use in distributed systems as it provides
- * reliable rate limiting across all application instances.
- *
- * Key features:
- * - Distributed rate limiting (works across multiple app instances)
- * - Atomic operations for race condition prevention
- * - Automatic key expiration using Redis TTL
- * - Persistence options available through Redis configuration
- * - Clustering support for high availability
- *
- * @example
- * import { TokenBucketRateLimiter } from 'te.js/rate-limit';
- *
- * // Use Redis storage for distributed rate limiting
- * const limiter = new TokenBucketRateLimiter({
- *   maxRequests: 100,
- *   timeWindowSeconds: 60,
- *   store: 'redis', // Use Redis storage
- *   tokenBucketConfig: {
- *     refillRate: 2,
- *     burstSize: 100
- *   }
- * });
  */
 class RedisStorage extends RateLimitStorage {
   /**
-   * Initialize Redis storage with client
-   *
-   * @param {RedisClient} client - Connected Redis client instance
+   * @param {Object} config - Redis connection configuration
+   * @param {string} config.url - Redis connection URL (required)
+   *   Remaining properties are forwarded to the node-redis `createClient` call.
    */
-  constructor(client) {
+  constructor(config) {
     super();
-    this.client = client;
+
+    if (!config?.url) {
+      throw new Error(
+        'RedisStorage requires a url. Provide store: { type: "redis", url: "redis://..." }',
+      );
+    }
+
+    const { type: _type, url, ...redisOptions } = config;
+    this._url = url;
+    this._redisOptions = redisOptions;
+
+    this._client = null;
+    this._connectPromise = this._init();
+  }
+
+  /** Bootstrap: ensure redis is installed, create client, connect. */
+  async _init() {
+    const { needsInstall } = checkRedisInstallation();
+    if (needsInstall) {
+      installRedisSync();
+    }
+
+    // Dynamic import so the module is only resolved after auto-install
+    const { createClient } = await import('redis');
+
+    this._client = createClient({ url: this._url, ...this._redisOptions });
+
+    this._client.on('error', (err) => {
+      logger.error(`Redis client error: ${err.message}`);
+    });
+
+    await this._client.connect();
+    logger.info(`Connected to Redis at ${this._url}`);
+  }
+
+  /** Wait until the client is ready before any operation. */
+  async _ready() {
+    await this._connectPromise;
+    return this._client;
   }
 
   /**
-   * Get stored data for a key
-   *
-   * @param {string} key - The storage key to retrieve
-   * @returns {Promise<Object|null>} Stored value if found, null otherwise
+   * @param {string} key
+   * @returns {Promise<Object|null>}
    */
   async get(key) {
-    const value = await this.client.get(key);
-    return value ? JSON.parse(value) : null;
+    const client = await this._ready();
+    const raw = await client.get(key);
+    if (raw === null) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
   }
 
   /**
-   * Store data with expiration time
-   *
-   * @param {string} key - The storage key
-   * @param {Object} value - The data to store
-   * @param {number} ttl - Time-to-live in seconds
-   * @returns {Promise<void>}
+   * @param {string} key
+   * @param {Object} value
+   * @param {number} ttl - seconds
    */
   async set(key, value, ttl) {
-    await this.client.set(key, JSON.stringify(value), { EX: ttl });
+    const client = await this._ready();
+    const seconds = Math.max(1, Math.ceil(ttl));
+    await client.setEx(key, seconds, JSON.stringify(value));
   }
 
   /**
-   * Increment a counter value atomically
+   * Atomically increments the `counter` field inside the stored JSON value.
+   * Uses a Lua script to read-modify-write in a single round-trip.
    *
-   * @param {string} key - The storage key to increment
-   * @returns {Promise<number>} New value after increment
+   * @param {string} key
+   * @returns {Promise<number|null>}
    */
   async increment(key) {
-    return await this.client.incr(key);
+    const client = await this._ready();
+
+    const script = `
+      local raw = redis.call('GET', KEYS[1])
+      if not raw then return nil end
+      local data = cjson.decode(raw)
+      data.counter = (data.counter or 0) + 1
+      local ttl = redis.call('TTL', KEYS[1])
+      if ttl > 0 then
+        redis.call('SETEX', KEYS[1], ttl, cjson.encode(data))
+      else
+        redis.call('SET', KEYS[1], cjson.encode(data))
+      end
+      return data.counter
+    `;
+
+    const result = await client.eval(script, { keys: [key] });
+    return result === null ? null : Number(result);
   }
 
   /**
-   * Delete data for a key
-   *
-   * @param {string} key - The storage key to delete
-   * @returns {Promise<void>}
+   * @param {string} key
    */
   async delete(key) {
-    await this.client.del(key);
+    const client = await this._ready();
+    await client.del(key);
   }
 }
 

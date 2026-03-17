@@ -301,19 +301,6 @@ To change the targets directory:
 }
 ```
 
-## Database Configuration
-
-Database connections are configured via `takeoff()` options, not through the config file:
-
-```javascript
-app.takeoff({
-  withRedis: { url: 'redis://localhost:6379' },
-  withMongo: { uri: 'mongodb://localhost:27017/myapp' },
-});
-```
-
-See [Database Integration](./database.md) for details.
-
 ## Next Steps
 
 - [Getting Started](./getting-started.md) — Build your first Tejas application

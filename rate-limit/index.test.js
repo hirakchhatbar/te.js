@@ -4,16 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import rateLimiter from './index.js';
 
-// Mock dbManager.hasConnection so we can test without a real DB
-vi.mock('../database/index.js', () => ({
-  default: {
-    hasConnection: vi.fn(() => false),
-    initializeConnection: vi.fn(),
-  },
-}));
-
 function makeAmmo(ip = '127.0.0.1') {
-  const headers = {};
   return {
     ip,
     res: {
@@ -24,13 +15,6 @@ function makeAmmo(ip = '127.0.0.1') {
 }
 
 describe('rateLimiter', () => {
-  it('should throw TejError when redis store selected but no connection', async () => {
-    const TejError = (await import('../server/error.js')).default;
-    expect(() =>
-      rateLimiter({ maxRequests: 10, timeWindowSeconds: 60, store: 'redis' }),
-    ).toThrow();
-  });
-
   it('should throw on invalid algorithm', () => {
     expect(() =>
       rateLimiter({
@@ -60,5 +44,50 @@ describe('rateLimiter', () => {
     const next = vi.fn().mockResolvedValue(undefined);
     await mw(ammo, next);
     expect(next).toHaveBeenCalled();
+  });
+
+  it('should throw on invalid store config', () => {
+    expect(() =>
+      rateLimiter({
+        maxRequests: 10,
+        timeWindowSeconds: 60,
+        store: 'postgres',
+      }),
+    ).toThrow(/Invalid store config/);
+  });
+
+  it('should throw when redis store has no url', () => {
+    expect(() =>
+      rateLimiter({
+        maxRequests: 10,
+        timeWindowSeconds: 60,
+        store: { type: 'redis' },
+      }),
+    ).toThrow(/requires a url/);
+  });
+
+  it('should accept redis store config without throwing on creation', () => {
+    vi.mock('./storage/redis.js', () => ({
+      default: class MockRedisStorage {
+        async get() {
+          return null;
+        }
+        async set() {}
+        async increment() {
+          return null;
+        }
+        async delete() {}
+      },
+    }));
+
+    expect(() =>
+      rateLimiter({
+        maxRequests: 10,
+        timeWindowSeconds: 60,
+        store: { type: 'redis', url: 'redis://localhost:6379' },
+      }),
+    ).not.toThrow();
+
+    vi.restoreAllMocks();
   });
 });

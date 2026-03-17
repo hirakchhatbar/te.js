@@ -1,9 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import TejLogger from 'tej-logger';
 
 const logger = new TejLogger('Tejas.Radar');
+
+/**
+ * AsyncLocalStorage instance for propagating trace context across async
+ * boundaries within a single request.  Middleware sets `{ traceId }` on
+ * entry; downstream code can read it via `traceStore.getStore()?.traceId`.
+ */
+export const traceStore = new AsyncLocalStorage();
 
 /**
  * Attempt to read the `name` field from the nearest package.json at startup.
@@ -92,6 +101,9 @@ function parseJsonSafe(raw) {
  * @param {string} [config.projectName]      Project identifier. Falls back to RADAR_PROJECT_NAME env, then package.json `name`, then "tejas-app".
  * @param {number} [config.flushInterval]    Milliseconds between periodic flushes (default 2000).
  * @param {number} [config.batchSize]        Flush immediately when batch reaches this size (default 100).
+ * @param {number} [config.maxQueueSize]     Maximum events held in memory before oldest are dropped (default 10000).
+ * @param {Function} [config.transport]      Custom transport `(events) => Promise<{ok, status}>`.
+ *                                            Defaults to gzip-compressed HTTP POST to the collector.
  * @param {string[]} [config.ignore]         Request paths to skip (default ['/health']).
  * @param {Object}  [config.capture]         Controls what additional data is captured beyond metrics.
  * @param {boolean} [config.capture.request]          Capture and send request body (default false).
@@ -123,6 +135,7 @@ async function radarMiddleware(config = {}) {
 
   const flushInterval = config.flushInterval ?? 2000;
   const batchSize = config.batchSize ?? 100;
+  const maxQueueSize = config.maxQueueSize ?? 10_000;
   const ignorePaths = new Set(config.ignore ?? ['/health']);
 
   const capture = Object.freeze({
@@ -155,6 +168,26 @@ async function radarMiddleware(config = {}) {
   /** @type {Array<Object>} */
   let batch = [];
   let connected = false;
+  let retryQueue = null;
+  let retryCount = 0;
+  const MAX_RETRIES = 3;
+
+  async function defaultHttpTransport(events) {
+    const json = JSON.stringify(events);
+    const compressed = gzipSync(Buffer.from(json));
+    return fetch(ingestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
+        Authorization: authHeader,
+      },
+      body: compressed,
+    });
+  }
+
+  const send = config.transport ?? defaultHttpTransport;
+
 
   /** @type {{ feature: string, ok: boolean, detail: string }} */
   let radarStatus;
@@ -181,35 +214,59 @@ async function radarMiddleware(config = {}) {
     };
   }
 
+  async function sendPayload(payload) {
+    try {
+      const res = await send(payload);
+      if (res.ok) {
+        if (!connected) {
+          connected = true;
+          logger.info(
+            `Connected — project: "${projectName}", collector: ${collectorUrl}`,
+          );
+        }
+        return true;
+      }
+      if (res.status === 401) {
+        if (connected) connected = false;
+        logger.warn(
+          'Radar API key rejected by collector. Telemetry will not be recorded.',
+        );
+        return true;
+      }
+      return false;
+    } catch (err) {
+      logger.warn(`Radar flush failed: ${err.message}`);
+      return false;
+    }
+  }
+
   async function flush() {
+    if (retryQueue) {
+      const ok = await sendPayload(retryQueue);
+      if (ok) {
+        retryQueue = null;
+        retryCount = 0;
+      } else {
+        retryCount++;
+        if (retryCount >= MAX_RETRIES) {
+          logger.warn(
+            `Radar dropping ${retryQueue.length} events after ${MAX_RETRIES} failed retries`,
+          );
+          retryQueue = null;
+          retryCount = 0;
+        }
+        return;
+      }
+    }
+
     if (batch.length === 0) return;
     const payload = batch;
     batch = [];
 
-    try {
-      const res = await fetch(ingestUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok && !connected) {
-        connected = true;
-        logger.info(
-          `Connected — project: "${projectName}", collector: ${collectorUrl}`,
-        );
-      } else if (res.status === 401 && connected) {
-        connected = false;
-        logger.warn('Radar API key rejected by collector.');
-      } else if (res.status === 401) {
-        logger.warn(
-          'Radar API key rejected by collector. Telemetry will not be recorded.',
-        );
-      }
-    } catch (err) {
-      logger.warn(`Radar flush failed: ${err.message}`);
+    const ok = await sendPayload(payload);
+    if (!ok) {
+      retryQueue = payload;
+      retryCount = 1;
     }
   }
 
@@ -218,6 +275,7 @@ async function radarMiddleware(config = {}) {
 
   function radarCapture(ammo, next) {
     const startTime = Date.now();
+    const traceId = randomUUID().replace(/-/g, '');
 
     ammo.res.on('finish', () => {
       const path = ammo.endpoint ?? ammo.path ?? '/';
@@ -225,66 +283,94 @@ async function radarMiddleware(config = {}) {
       if (ammo.method === 'OPTIONS' || ignorePaths.has(path)) return;
 
       const status = ammo.res.statusCode;
-      const errorInfo = ammo._errorInfo ?? null;
+      const endTimestamp = Date.now();
+      const duration = endTimestamp - startTime;
+      const payloadSize = Buffer.byteLength(
+        JSON.stringify(ammo.payload ?? {}),
+        'utf8',
+      );
+      const responseSize = Buffer.byteLength(ammo.dispatchedData ?? '', 'utf8');
+      const ip = ammo.ip ?? null;
+      const userAgent = ammo.headers?.['user-agent'] ?? null;
+      const headers = buildHeaders(ammo.headers, capture.headers);
+      const requestBody = capture.request
+        ? deepMask(ammo.payload ?? null, clientMaskBlocklist)
+        : null;
+      const responseBody = capture.response
+        ? deepMask(parseJsonSafe(ammo.dispatchedData), clientMaskBlocklist)
+        : null;
 
-      // Build structured error JSON for the logs table when an error occurred.
-      let errorField = null;
-      if (status >= 400 && errorInfo) {
-        errorField = JSON.stringify({
-          message: errorInfo.message ?? null,
-          type: errorInfo.type ?? null,
-          devInsight: errorInfo.devInsight ?? null,
-        });
-      }
+      function pushEvents() {
+        const errorInfo = ammo._errorInfo ?? null;
 
-      batch.push({
-        type: 'log',
-        projectName,
-        method: ammo.method,
-        path,
-        status,
-        duration_ms: Date.now() - startTime,
-        payload_size: Buffer.byteLength(
-          JSON.stringify(ammo.payload ?? {}),
-          'utf8',
-        ),
-        response_size: Buffer.byteLength(ammo.dispatchedData ?? '', 'utf8'),
-        timestamp: Date.now(),
-        ip: ammo.ip ?? null,
-        traceId: null,
-        user_agent: ammo.headers?.['user-agent'] ?? null,
-        headers: buildHeaders(ammo.headers, capture.headers),
-        request_body: capture.request
-          ? deepMask(ammo.payload ?? null, clientMaskBlocklist)
-          : null,
-        response_body: capture.response
-          ? deepMask(parseJsonSafe(ammo.dispatchedData), clientMaskBlocklist)
-          : null,
-        error: errorField,
-      });
+        let errorField = null;
+        if (status >= 400 && errorInfo) {
+          errorField = JSON.stringify({
+            message: errorInfo.message ?? null,
+            type: errorInfo.type ?? null,
+            devInsight: errorInfo.devInsight ?? null,
+          });
+        }
 
-      // Emit a separate ErrorEvent for error grouping and tracking when status >= 400.
-      if (status >= 400) {
-        const message = errorInfo?.message ?? `HTTP ${status}`;
-        const fingerprint = createHash('sha256')
-          .update(`${message}:${path}`)
-          .digest('hex');
+        const incoming = status >= 400 ? 2 : 1;
+        if (batch.length + incoming > maxQueueSize) {
+          const overflow = batch.length + incoming - maxQueueSize;
+          batch.splice(0, overflow);
+        }
+
         batch.push({
-          type: 'error',
+          type: 'log',
           projectName,
-          fingerprint,
-          message,
-          stack: errorInfo?.stack ?? null,
-          endpoint: `${ammo.method} ${path}`,
-          traceId: null,
-          timestamp: Date.now(),
+          method: ammo.method,
+          path,
+          status,
+          duration_ms: duration,
+          payload_size: payloadSize,
+          response_size: responseSize,
+          timestamp: endTimestamp,
+          ip,
+          traceId,
+          user_agent: userAgent,
+          headers,
+          request_body: requestBody,
+          response_body: responseBody,
+          error: errorField,
         });
+
+        if (status >= 400) {
+          const message = errorInfo?.message ?? `HTTP ${status}`;
+          const fingerprint = createHash('sha256')
+            .update(`${message}:${path}`)
+            .digest('hex');
+          batch.push({
+            type: 'error',
+            projectName,
+            fingerprint,
+            message,
+            stack: errorInfo?.stack ?? null,
+            endpoint: `${ammo.method} ${path}`,
+            traceId,
+            timestamp: endTimestamp,
+          });
+        }
+
+        if (batch.length >= batchSize) flush();
       }
 
-      if (batch.length >= batchSize) flush();
+      if (ammo._llmPromise) {
+        const timeout = new Promise((resolve) => {
+          const t = setTimeout(resolve, 30000);
+          if (t.unref) t.unref();
+        });
+        Promise.race([ammo._llmPromise, timeout])
+          .catch(() => {})
+          .then(pushEvents);
+      } else {
+        pushEvents();
+      }
     });
 
-    next();
+    traceStore.run({ traceId }, () => next());
   }
 
   radarCapture._radarStatus = radarStatus;

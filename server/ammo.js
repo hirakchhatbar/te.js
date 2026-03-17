@@ -436,11 +436,12 @@ class Ammo {
           codeContext: null,
         };
 
-        // Fire-and-forget: capture context, call LLM, dispatch to channel.
+        // Run LLM in the background; expose the promise so the Radar middleware
+        // can await it before flushing events (ensures LLM data is captured).
         const method = this.method;
         const path = this.path;
         const self = this;
-        captureCodeContext(stack)
+        this._llmPromise = captureCodeContext(stack)
           .then((codeContext) => {
             // Update _errorInfo with captured code context
             if (self._errorInfo) self._errorInfo.codeContext = codeContext;

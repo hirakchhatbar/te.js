@@ -1,7 +1,7 @@
 /**
  * @fileoverview ICacheStore interface definition.
  *
- * Any cache backend (Redis, in-memory, etc.) injected into the framework
+ * Any cache backend (in-memory, etc.) injected into the framework
  * MUST satisfy this contract. Validate at construction time with:
  *
  * ```js

@@ -1,7 +1,6 @@
 import TejError from '../server/error.js';
 import MemoryStorage from './storage/memory.js';
 import RedisStorage from './storage/redis.js';
-import dbManager from '../database/index.js';
 
 /**
  * Base rate limiter class implementing common functionality for rate limiting algorithms
@@ -15,11 +14,9 @@ import dbManager from '../database/index.js';
  * object is provided (tokenBucketConfig, slidingWindowConfig, or fixedWindowConfig).
  *
  * @example
- * // Using with Redis storage and token bucket algorithm
  * const limiter = new TokenBucketRateLimiter({
  *   maxRequests: 10,
  *   timeWindowSeconds: 60,
- *   store: 'redis',
  *   tokenBucketConfig: {
  *     refillRate: 0.5,
  *     burstSize: 15
@@ -40,7 +37,9 @@ class RateLimiter {
    *                                                 For token bucket, this affects the default refill rate calculation.
    * @param {string} [options.keyPrefix='rl:'] - Prefix for storage keys. Useful when implementing different rate limit
    *                                           rules with different prefixes (e.g., 'rl:api:', 'rl:web:').
-   * @param {string} [options.store='memory'] - Storage backend to use ('memory' or 'redis')
+   * @param {string|Object} [options.store='memory'] - Storage backend: 'memory' (default) or
+   *   { type: 'redis', url: 'redis://...', ...redisOptions }.
+   *   In-memory storage is not shared across processes; use Redis for distributed deployments.
    * @param {Object} [options.tokenBucketConfig] - Token bucket algorithm specific options
    * @param {Object} [options.slidingWindowConfig] - Sliding window algorithm specific options
    * @param {Object} [options.fixedWindowConfig] - Fixed window algorithm specific options
@@ -101,18 +100,16 @@ class RateLimiter {
         }
       : null;
 
-    // Initialize storage based on store type
-    if (this.options.store === 'redis') {
-      if (!dbManager.hasConnection('redis')) {
-        throw new TejError(
-          500,
-          'Redis store selected but no Redis connection available. Call withRedis() first.',
-        );
-      }
-      const redisClient = dbManager.getConnection('redis');
-      this.storage = new RedisStorage(redisClient);
-    } else {
+    const store = this.options.store;
+    if (!store || store === 'memory') {
       this.storage = new MemoryStorage();
+    } else if (typeof store === 'object' && store.type === 'redis') {
+      this.storage = new RedisStorage(store);
+    } else {
+      throw new TejError(
+        400,
+        `Invalid store config. Use 'memory' or { type: 'redis', url: '...' }.`,
+      );
     }
   }
 
