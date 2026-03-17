@@ -11,6 +11,7 @@ script.test.js
 
 # Cursor AI plans (local only)
 .cursor/plans/
+.cursor/
 
 #Ignore files and folders from the example folder
 example/.env
@@ -19,12 +20,4 @@ example/package-lock.json
 example/.idea
 example/uploads
 
-# Ignored scripts
-scripts/start-development.ps1
-scripts/start-redis.ps1
-scripts/start-clickhouse.ps1
-scripts/start-collector.ps1
-scripts/start-radar-backend.ps1
-scripts/start-radar-frontend.ps1
-scripts/start-radar-simulator.ps1
-scripts/start-radar-simulator-traffic.ps1
+scripts/

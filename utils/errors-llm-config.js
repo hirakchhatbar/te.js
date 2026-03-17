@@ -189,19 +189,31 @@ export async function verifyLlmConnection() {
     if (content.includes('"ok"')) {
       return {
         ok: true,
-        status: { feature: 'LLM Errors', ok: true, detail: `verified (${shortModel}, ${elapsed}ms, mode: ${mode})` },
+        status: {
+          feature: 'LLM Errors',
+          ok: true,
+          detail: `verified (${shortModel}, ${elapsed}ms, mode: ${mode})`,
+        },
       };
     }
 
     return {
       ok: false,
-      status: { feature: 'LLM Errors', ok: false, detail: `unexpected response from ${shortModel} (${elapsed}ms)` },
+      status: {
+        feature: 'LLM Errors',
+        ok: false,
+        detail: `unexpected response from ${shortModel} (${elapsed}ms)`,
+      },
     };
   } catch (err) {
     const elapsed = Date.now() - start;
     return {
       ok: false,
-      status: { feature: 'LLM Errors', ok: false, detail: `${err.message} (${elapsed}ms)` },
+      status: {
+        feature: 'LLM Errors',
+        ok: false,
+        detail: `${err.message} (${elapsed}ms)`,
+      },
     };
   }
 }

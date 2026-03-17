@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { gzipSync } from 'node:zlib';
+import { gzip } from 'node:zlib';
+import { promisify } from 'node:util';
+
+const gzipAsync = promisify(gzip);
 import { AsyncLocalStorage } from 'node:async_hooks';
 import TejLogger from 'tej-logger';
 
@@ -153,7 +156,11 @@ async function radarMiddleware(config = {}) {
 
   if (!apiKey) {
     const mw = (_ammo, next) => next();
-    mw._radarStatus = { feature: 'Radar', ok: null, detail: 'disabled (no API key)' };
+    mw._radarStatus = {
+      feature: 'Radar',
+      ok: null,
+      detail: 'disabled (no API key)',
+    };
     return mw;
   }
 
@@ -170,7 +177,7 @@ async function radarMiddleware(config = {}) {
 
   async function defaultHttpTransport(events) {
     const json = JSON.stringify(events);
-    const compressed = gzipSync(Buffer.from(json));
+    const compressed = await gzipAsync(Buffer.from(json));
     return fetch(ingestUrl, {
       method: 'POST',
       headers: {
@@ -189,12 +196,24 @@ async function radarMiddleware(config = {}) {
   try {
     const healthRes = await fetch(healthUrl);
     if (healthRes.ok) {
-      radarStatus = { feature: 'Radar', ok: true, detail: `connected (${collectorUrl})` };
+      radarStatus = {
+        feature: 'Radar',
+        ok: true,
+        detail: `connected (${collectorUrl})`,
+      };
     } else {
-      radarStatus = { feature: 'Radar', ok: false, detail: `collector returned ${healthRes.status} (${collectorUrl})` };
+      radarStatus = {
+        feature: 'Radar',
+        ok: false,
+        detail: `collector returned ${healthRes.status} (${collectorUrl})`,
+      };
     }
   } catch (err) {
-    radarStatus = { feature: 'Radar', ok: false, detail: `unreachable (${collectorUrl})` };
+    radarStatus = {
+      feature: 'Radar',
+      ok: false,
+      detail: `unreachable (${collectorUrl})`,
+    };
   }
 
   async function sendPayload(payload) {
