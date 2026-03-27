@@ -16,6 +16,63 @@ import { getCache } from './llm-cache.js';
 const DEFAULT_STATUS = 500;
 const DEFAULT_MESSAGE = 'Internal Server Error';
 
+const MASKED_FIELDS = new Set([
+  'password',
+  'passwd',
+  'secret',
+  'token',
+  'api_key',
+  'apikey',
+  'authorization',
+  'auth',
+  'credit_card',
+  'card_number',
+  'cvv',
+  'ssn',
+  'email',
+  'phone',
+  'mobile',
+  'otp',
+  'pin',
+  'dob',
+  'date_of_birth',
+  'address',
+]);
+
+/**
+ * Recursively mask sensitive fields in an object before it reaches the LLM.
+ * Returns a new object; the original is never mutated.
+ */
+function maskForLlm(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(maskForLlm);
+
+  const result = {};
+  for (const [k, v] of Object.entries(value)) {
+    result[k] = MASKED_FIELDS.has(k.toLowerCase()) ? '[MASKED]' : maskForLlm(v);
+  }
+  return result;
+}
+
+/**
+ * Sanitise an error before including it in the LLM prompt.
+ * If the error is an object with properties that match the GDPR blocklist,
+ * those values are replaced with [MASKED]. If it's a raw string or an Error
+ * with only a message, the message is passed through (it's developer-authored
+ * code-level text, not user-submitted data).
+ */
+function sanitiseErrorForPrompt(error) {
+  if (error === null || error === undefined) return error;
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) {
+    const sanitised = new Error(error.message);
+    sanitised.name = error.name;
+    return sanitised;
+  }
+  return maskForLlm(error);
+}
+
 /**
  * Build prompt text from code context (and optional error) for the LLM.
  * @param {object} context
@@ -153,7 +210,7 @@ export async function inferErrorFromContext(context) {
     path: context.path,
     includeDevInsight,
     messageType,
-    error: context.error,
+    error: sanitiseErrorForPrompt(context.error),
   });
 
   const { content } = await provider.analyze(prompt);

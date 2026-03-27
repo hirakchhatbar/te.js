@@ -5,6 +5,7 @@ import logHttpRequest from '../utils/request-logger.js';
 import Ammo from './ammo.js';
 import TejError from './error.js';
 import targetRegistry from './targets/registry.js';
+import { traceStore } from '../radar/index.js';
 
 const errorLogger = new TejLogger('Tejas.Exception');
 const logger = new TejLogger('Tejas');
@@ -61,13 +62,34 @@ const executeChain = async (target, ammo) => {
     }
 
     const middleware = chain[i];
+    const currentIndex = i;
     i++;
+
+    // Span instrumentation — only active when radar tracing has set up a spanCtx.
+    const spanCtx = traceStore.getStore()?.spanCtx;
+    const spanStartMs = spanCtx ? Date.now() : 0;
+    const isHandler = currentIndex === chain.length - 1;
+    const spanName = isHandler
+      ? `handler:${ammo.endpoint ?? ammo.path ?? '/'}`
+      : `middleware:${middleware.name || 'anonymous'}`;
+    const spanType = isHandler ? 'handler' : 'middleware';
 
     const args =
       middleware.length === 3 ? [ammo.req, ammo.res, next] : [ammo, next];
 
     try {
       const result = await middleware(...args);
+
+      if (spanCtx) {
+        spanCtx.addSpan(
+          spanName,
+          spanType,
+          spanCtx.rootSpanId,
+          spanStartMs,
+          Date.now() - spanStartMs,
+          ammo.res.statusCode || 200,
+        );
+      }
 
       // Check again after middleware execution (passport might have redirected)
       if (ammo.res.headersSent || ammo.res.writableEnded || ammo.res.finished) {
@@ -87,6 +109,17 @@ const executeChain = async (target, ammo) => {
         }
       }
     } catch (err) {
+      if (spanCtx) {
+        spanCtx.addSpan(
+          spanName,
+          spanType,
+          spanCtx.rootSpanId,
+          spanStartMs,
+          Date.now() - spanStartMs,
+          500,
+        );
+      }
+
       // Only handle error if response hasn't been sent
       if (
         !ammo.res.headersSent &&

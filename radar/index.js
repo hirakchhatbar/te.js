@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 const gzipAsync = promisify(gzip);
 import { AsyncLocalStorage } from 'node:async_hooks';
 import TejLogger from 'tej-logger';
+import { getErrorsLlmConfig } from '../utils/errors-llm-config.js';
+import { createSpanContext, buildSpanEvent } from './spans.js';
 
 const logger = new TejLogger('Tejas.Radar');
 
@@ -95,6 +97,22 @@ function parseJsonSafe(raw) {
   }
 }
 
+const MAX_JSON_BLOB = 8 * 1024;
+
+/**
+ * Return `value` if its JSON-serialised size fits within the collector's
+ * per-field blob limit, otherwise `null`.  Prevents oversized request/response
+ * bodies from causing 422 rejections that drop the entire batch.
+ */
+function capJsonBlob(value) {
+  if (value == null) return null;
+  try {
+    return JSON.stringify(value).length <= MAX_JSON_BLOB ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Factory that returns a te.js-compatible `(ammo, next)` middleware which
  * captures HTTP request metrics and forwards them to the Tejas Radar collector.
@@ -108,12 +126,17 @@ function parseJsonSafe(raw) {
  * @param {Function} [config.transport]      Custom transport `(events) => Promise<{ok, status}>`.
  *                                            Defaults to gzip-compressed HTTP POST to the collector.
  * @param {string[]} [config.ignore]         Request paths to skip (default ['/health']).
+ * @param {string} [config.collectorUrl]     Radar collector URL. Falls back to RADAR_COLLECTOR_URL env, then "https://collector.usetejas.com".
  * @param {Object}  [config.capture]         Controls what additional data is captured beyond metrics.
  * @param {boolean} [config.capture.request]          Capture and send request body (default false).
  * @param {boolean} [config.capture.response]         Capture and send response body (default false).
  * @param {boolean|string[]} [config.capture.headers] Capture request headers. `true` sends all headers;
  *                                                     a `string[]` sends only the named headers (allowlist);
  *                                                     `false` (default) sends nothing.
+ * @param {boolean} [config.capture.logs=false]        Forward TejLogger calls to the collector as app-level
+ *                                                     log events. Off by default.
+ * @param {string[]} [config.capture.logLevels]        When `capture.logs` is true, only forward these levels
+ *                                                     (e.g. `['warn', 'error']`). Defaults to all levels.
  * @param {Object}   [config.mask]           Client-side masking applied before data is sent.
  * @param {string[]} [config.mask.fields]    Extra field names to mask in request/response bodies.
  *                                            These are merged with the collector's server-side GDPR blocklist.
@@ -122,11 +145,10 @@ function parseJsonSafe(raw) {
  * @returns {Promise<Function>} Middleware function `(ammo, next)`
  */
 async function radarMiddleware(config = {}) {
-  // RADAR_COLLECTOR_URL is an undocumented internal escape hatch used only
-  // during local development. In production, telemetry always goes to the
-  // hosted collector and this env var should not be set.
   const collectorUrl =
-    process.env.RADAR_COLLECTOR_URL ?? 'http://localhost:3100';
+    config.collectorUrl ??
+    process.env.RADAR_COLLECTOR_URL ??
+    'https://collector.usetejas.com';
 
   const apiKey = config.apiKey ?? process.env.RADAR_API_KEY ?? null;
 
@@ -145,6 +167,8 @@ async function radarMiddleware(config = {}) {
     request: config.capture?.request === true,
     response: config.capture?.response === true,
     headers: config.capture?.headers ?? false,
+    logs: config.capture?.logs === true,
+    logLevels: config.capture?.logLevels ?? null,
   });
 
   // Build the client-side field blocklist from developer-supplied extra fields.
@@ -275,9 +299,40 @@ async function radarMiddleware(config = {}) {
   const timer = setInterval(flush, flushInterval);
   if (timer.unref) timer.unref();
 
+  const captureLevels = capture.logLevels ? new Set(capture.logLevels) : null;
+
+  if (capture.logs) {
+    TejLogger.addHook(({ level, identifier, message, metadata }) => {
+      if (captureLevels && !captureLevels.has(level)) return;
+
+      const store = traceStore.getStore();
+      const traceId = store?.traceId ?? null;
+
+      const metaJson =
+        metadata != null
+          ? JSON.stringify(metadata).slice(0, MAX_JSON_BLOB)
+          : null;
+
+      const event = {
+        type: 'app_log',
+        projectName,
+        level,
+        message: `[${identifier}] ${String(message).slice(0, 4096)}`,
+        traceId,
+        timestamp: Date.now(),
+        metadata: metaJson,
+      };
+
+      if (batch.length >= maxQueueSize) batch.splice(0, 1);
+      batch.push(event);
+      if (batch.length >= batchSize) flush();
+    });
+  }
+
   function radarCapture(ammo, next) {
     const startTime = Date.now();
     const traceId = randomUUID().replace(/-/g, '');
+    const spanCtx = createSpanContext(traceId);
 
     ammo.res.on('finish', () => {
       const path = ammo.endpoint ?? ammo.path ?? '/';
@@ -294,12 +349,14 @@ async function radarMiddleware(config = {}) {
       const responseSize = Buffer.byteLength(ammo.dispatchedData ?? '', 'utf8');
       const ip = ammo.ip ?? null;
       const userAgent = ammo.headers?.['user-agent'] ?? null;
-      const headers = buildHeaders(ammo.headers, capture.headers);
+      const headers = capJsonBlob(buildHeaders(ammo.headers, capture.headers));
       const requestBody = capture.request
-        ? deepMask(ammo.payload ?? null, clientMaskBlocklist)
+        ? capJsonBlob(deepMask(ammo.payload ?? null, clientMaskBlocklist))
         : null;
       const responseBody = capture.response
-        ? deepMask(parseJsonSafe(ammo.dispatchedData), clientMaskBlocklist)
+        ? capJsonBlob(
+            deepMask(parseJsonSafe(ammo.dispatchedData), clientMaskBlocklist),
+          )
         : null;
 
       function pushEvents() {
@@ -311,10 +368,26 @@ async function radarMiddleware(config = {}) {
             message: errorInfo.message ?? null,
             type: errorInfo.type ?? null,
             devInsight: errorInfo.devInsight ?? null,
+            llmEnabled: getErrorsLlmConfig().enabled,
           });
         }
 
-        const incoming = status >= 400 ? 2 : 1;
+        // Finalize root span — added last so middleware spans already
+        // reference rootSpanId as their parentId.
+        spanCtx.addSpan(
+          `${ammo.method} ${path}`,
+          'handler',
+          null,
+          startTime,
+          duration,
+          status,
+        );
+
+        const spanEvents = spanCtx.spans.map((s) =>
+          buildSpanEvent(projectName, spanCtx, s),
+        );
+
+        const incoming = (status >= 400 ? 2 : 1) + spanEvents.length;
         if (batch.length + incoming > maxQueueSize) {
           const overflow = batch.length + incoming - maxQueueSize;
           batch.splice(0, overflow);
@@ -356,6 +429,10 @@ async function radarMiddleware(config = {}) {
           });
         }
 
+        for (const spanEvent of spanEvents) {
+          batch.push(spanEvent);
+        }
+
         if (batch.length >= batchSize) flush();
       }
 
@@ -372,7 +449,7 @@ async function radarMiddleware(config = {}) {
       }
     });
 
-    traceStore.run({ traceId }, () => next());
+    traceStore.run({ traceId, spanCtx }, () => next());
   }
 
   radarCapture._radarStatus = radarStatus;

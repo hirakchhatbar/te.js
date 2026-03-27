@@ -35,6 +35,112 @@ function isThrowOptions(v) {
 }
 
 /**
+ * Synchronously resolve throw() arguments into a status code, message, error
+ * metadata, and an `explicit` flag that tells the LLM whether it may override
+ * the resolved code/message.
+ *
+ * @param {unknown[]} args  The throw() arguments (after throwOpts have been popped)
+ * @returns {{ statusCode: number, message: string, errorType: string|null, stack: string|null, originalError: unknown, explicit: boolean }}
+ */
+function resolveThrowArgs(args) {
+  if (args.length === 0) {
+    return {
+      statusCode: 500,
+      message: 'Internal Server Error',
+      errorType: null,
+      stack: null,
+      originalError: undefined,
+      explicit: true,
+    };
+  }
+
+  if (isStatusCode(args[0])) {
+    return {
+      statusCode: args[0],
+      message: args[1] || toStatusMessage(args[0]),
+      errorType: null,
+      stack: null,
+      originalError: undefined,
+      explicit: true,
+    };
+  }
+
+  if (
+    typeof args[0]?.statusCode === 'number' &&
+    typeof args[0]?.code === 'string'
+  ) {
+    const err = args[0];
+    return {
+      statusCode: err.statusCode,
+      message: err.message,
+      errorType: err.constructor?.name ?? 'TejError',
+      stack: err.stack ?? null,
+      originalError: err,
+      explicit: true,
+    };
+  }
+
+  if (
+    args[0] != null &&
+    typeof args[0].message === 'string' &&
+    typeof args[0].stack === 'string'
+  ) {
+    const err = args[0];
+    if (!isNaN(parseInt(err.message))) {
+      const code = parseInt(err.message);
+      return {
+        statusCode: code,
+        message: toStatusMessage(code) || toStatusMessage(500),
+        errorType: err.constructor.name,
+        stack: err.stack,
+        originalError: err,
+        explicit: false,
+      };
+    }
+    const code = toStatusCode(err.message);
+    if (code) {
+      return {
+        statusCode: code,
+        message: err.message,
+        errorType: err.constructor.name,
+        stack: err.stack,
+        originalError: err,
+        explicit: false,
+      };
+    }
+    return {
+      statusCode: 500,
+      message: err.message,
+      errorType: err.constructor.name,
+      stack: err.stack,
+      originalError: err,
+      explicit: false,
+    };
+  }
+
+  const val = args[0];
+  const code = toStatusCode(val);
+  if (code) {
+    return {
+      statusCode: code,
+      message: toStatusMessage(code),
+      errorType: null,
+      stack: null,
+      originalError: undefined,
+      explicit: true,
+    };
+  }
+  return {
+    statusCode: 500,
+    message: val.toString(),
+    errorType: null,
+    stack: null,
+    originalError: undefined,
+    explicit: true,
+  };
+}
+
+/**
  * Ammo class for handling HTTP requests and responses.
  *
  * @description
@@ -339,25 +445,28 @@ class Ammo {
    * 4. Error object: Extracts status code and message from the error
    * 5. String: Treats as error message with 500 status code
    *
-   * When errors.llm.enabled is true and no explicit code/message is given (no args,
-   * Error, or string/other), an LLM infers statusCode and message from context.
-   * In that case throw() returns a Promise; otherwise it returns undefined.
+   * When errors.llm is enabled (via `withLLMErrors()`), every throw() call is
+   * enriched by the LLM with a `devInsight` field for Radar.  Explicit status
+   * codes and messages are always preserved — the LLM only adds diagnostic
+   * context, never overrides the developer's chosen code/message.  For bare
+   * Error objects the LLM may also infer a more appropriate status code and
+   * message.  When the LLM path is active, throw() returns a Promise.
    *
-   * Per-call options (last argument, only when no explicit status code): pass an object
-   * with `useLlm` (boolean) and/or `messageType` ('endUser' | 'developer'). Use
-   * `useLlm: false` to skip the LLM for this call; use `messageType` to override
-   * errors.llm.messageType for this call (end-user-friendly vs developer-friendly message).
+   * Per-call options (last argument): pass an object with `useLlm` (boolean)
+   * and/or `messageType` ('endUser' | 'developer').  Use `useLlm: false` to
+   * skip the LLM for this specific call; use `messageType` to override
+   * errors.llm.messageType for this call.
    *
    * @example
    * // Throw a 404 Not Found error
    * ammo.throw(404);
    *
    * @example
-   * // Throw a 404 Not Found error with custom message
+   * // Throw a 404 with custom message — LLM adds devInsight only
    * ammo.throw(404, 'Resource not found');
    *
    * @example
-   * // Throw an error from an Error object
+   * // Error object — LLM infers code + message + devInsight
    * ammo.throw(new Error('Something went wrong'));
    *
    * @example
@@ -365,8 +474,8 @@ class Ammo {
    * ammo.throw('Something went wrong');
    *
    * @example
-   * // Skip LLM for this call; use default 500
-   * ammo.throw(err, { useLlm: false });
+   * // Skip LLM for this specific call
+   * ammo.throw(502, 'Known upstream issue', { useLlm: false });
    *
    * @example
    * // Force developer-friendly message for this call
@@ -378,129 +487,65 @@ class Ammo {
     let args = Array.from(arguments);
     const { enabled: llmEnabled } = getErrorsLlmConfig();
 
-    // Per-call options: last arg can be { useLlm?, messageType? } when call is LLM-eligible (no explicit code).
-    const llmEligible =
-      args.length === 0 ||
-      (!isStatusCode(args[0]) &&
-        !(
-          typeof args[0]?.statusCode === 'number' &&
-          typeof args[0]?.code === 'string'
-        ));
+    // Per-call options: last arg can be { useLlm?, messageType? }.
     let throwOpts =
       /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } | null} */ (
         null
       );
-    if (
-      llmEligible &&
-      args.length > 0 &&
-      isThrowOptions(args[args.length - 1])
-    ) {
+    if (args.length > 0 && isThrowOptions(args[args.length - 1])) {
       throwOpts =
         /** @type {{ useLlm?: boolean, messageType?: 'endUser'|'developer' } } */ (
           args.pop()
         );
     }
 
-    const useLlm = llmEnabled && llmEligible && throwOpts?.useLlm !== false;
+    // ── Phase 1: resolve statusCode, message, metadata from args ──────
+    const resolved = resolveThrowArgs(args);
+    const { statusCode, message, errorType, originalError } = resolved;
+    // For LLM code-context capture we always need a stack trace, even when
+    // the developer passed a bare status code like throw(502).
+    const stack = resolved.stack ?? new Error().stack;
 
-    if (useLlm) {
-      // Capture the stack string SYNCHRONOUSLY before any async work or fire() call,
-      // because the call stack unwinds as soon as we await or respond.
-      const stack =
-        args[0] != null && typeof args[0].stack === 'string'
-          ? args[0].stack
-          : new Error().stack;
-      const originalError =
-        args[0] !== undefined && args[0] !== null ? args[0] : undefined;
+    // ── Phase 2: decide fire strategy ─────────────────────────────────
+    const useLlm = llmEnabled && throwOpts?.useLlm !== false;
 
-      const { mode, channel, logFile } = getErrorsLlmConfig();
+    if (!useLlm) {
+      this._errorInfo = {
+        message,
+        type: errorType,
+        devInsight: null,
+        stack: resolved.stack,
+        codeContext: null,
+      };
+      this.fire(statusCode, message);
+      return;
+    }
 
-      if (mode === 'async') {
-        // Respond immediately with a generic 500, then run LLM in the background.
-        this.fire(500, 'Internal Server Error');
+    const { mode, channel, logFile } = getErrorsLlmConfig();
 
-        // Stash basic error info synchronously so radar can read it on res.finish
-        // even before LLM completes. LLM result will update _errorInfo when ready.
-        const errorType =
-          originalError != null &&
-          typeof originalError.constructor?.name === 'string'
-            ? originalError.constructor.name
-            : originalError !== undefined
-              ? typeof originalError
-              : null;
-        this._errorInfo = {
-          message: 'Internal Server Error',
-          type: errorType,
-          devInsight: null,
-          stack: stack ?? null,
-          codeContext: null,
-        };
+    if (mode === 'async') {
+      // Fire immediately with the resolved code/message.
+      this.fire(statusCode, message);
+      this._errorInfo = {
+        message,
+        type: errorType,
+        devInsight: null,
+        stack: stack ?? null,
+        codeContext: null,
+      };
 
-        // Run LLM in the background; expose the promise so the Radar middleware
-        // can await it before flushing events (ensures LLM data is captured).
-        const method = this.method;
-        const path = this.path;
-        const self = this;
-        this._llmPromise = captureCodeContext(stack)
-          .then((codeContext) => {
-            // Update _errorInfo with captured code context
-            if (self._errorInfo) self._errorInfo.codeContext = codeContext;
-            const context = {
-              codeContext,
-              method,
-              path,
-              // Always request devInsight in async mode — it goes to the channel, not the HTTP response.
-              includeDevInsight: true,
-              forceDevInsight: true,
-              ...(throwOpts?.messageType && {
-                messageType: throwOpts.messageType,
-              }),
-            };
-            if (originalError !== undefined) context.error = originalError;
-            return inferErrorFromContext(context).then((result) => ({
-              result,
-              codeContext,
-            }));
-          })
-          .then(({ result, codeContext }) => {
-            // Update _errorInfo with full LLM result
-            if (self._errorInfo) {
-              self._errorInfo.message = result.message;
-              self._errorInfo.devInsight = result.devInsight ?? null;
-            }
-            const channels = getChannels(channel, logFile);
-            const payload = buildPayload({
-              method,
-              path,
-              originalError,
-              codeContext,
-              statusCode: result.statusCode,
-              message: result.message,
-              devInsight: result.devInsight,
-              cached: result.cached,
-              rateLimited: result.rateLimited,
-            });
-            return dispatchToChannels(channels, payload);
-          })
-          .catch((err) => {
-            // Background LLM failed after HTTP response already sent — log the failure
-            // but do not attempt to respond again.
-            logger.warn(
-              `Background LLM dispatch failed: ${err?.message ?? err}`,
-            );
-          });
-
-        return;
-      }
-
-      // Sync mode (default): block until LLM responds, then fire.
-      return captureCodeContext(stack)
+      const method = this.method;
+      const path = this.path;
+      const self = this;
+      this._llmPromise = captureCodeContext(stack)
         .then((codeContext) => {
+          if (self._errorInfo) self._errorInfo.codeContext = codeContext;
           const context = {
             codeContext,
-            method: this.method,
-            path: this.path,
+            method,
+            path,
             includeDevInsight: true,
+            forceDevInsight: true,
             ...(throwOpts?.messageType && {
               messageType: throwOpts.messageType,
             }),
@@ -512,142 +557,76 @@ class Ammo {
           }));
         })
         .then(({ result, codeContext }) => {
-          const { statusCode, message, devInsight } = result;
-          const errorType =
-            originalError != null &&
-            typeof originalError.constructor?.name === 'string'
-              ? originalError.constructor.name
-              : originalError !== undefined
-                ? typeof originalError
-                : null;
-          this._errorInfo = {
-            message,
-            type: errorType,
-            devInsight: devInsight ?? null,
-            stack: stack ?? null,
-            codeContext: codeContext ?? null,
-          };
-          const isProduction = process.env.NODE_ENV === 'production';
-          const data =
-            !isProduction && devInsight
-              ? { message, _dev: devInsight }
-              : message;
-          this.fire(statusCode, data);
+          if (self._errorInfo) {
+            if (!resolved.explicit) self._errorInfo.message = result.message;
+            self._errorInfo.devInsight = result.devInsight ?? null;
+          }
+          const channels = getChannels(channel, logFile);
+          const payload = buildPayload({
+            method,
+            path,
+            originalError,
+            codeContext,
+            statusCode: resolved.explicit ? statusCode : result.statusCode,
+            message: resolved.explicit ? message : result.message,
+            devInsight: result.devInsight,
+            cached: result.cached,
+            rateLimited: result.rateLimited,
+          });
+          return dispatchToChannels(channels, payload);
         })
         .catch((err) => {
-          // LLM call failed (network error, timeout, etc.) — fall back to generic 500
-          // so the client always gets a response and we don't trigger an infinite retry loop.
-          logger.warn(`LLM error inference failed: ${err?.message ?? err}`);
-          this.fire(500, 'Internal Server Error');
+          logger.warn(`Background LLM dispatch failed: ${err?.message ?? err}`);
         });
-    }
 
-    // Sync path: explicit code/message or useLlm: false
-    if (args.length === 0) {
-      this._errorInfo = {
-        message: 'Internal Server Error',
-        type: null,
-        devInsight: null,
-        stack: null,
-        codeContext: null,
-      };
-      this.fire(500, 'Internal Server Error');
       return;
     }
 
-    if (isStatusCode(args[0])) {
-      const statusCode = args[0];
-      const message = args[1] || toStatusMessage(statusCode);
-      this._errorInfo = {
-        message,
-        type: null,
-        devInsight: null,
-        stack: null,
-        codeContext: null,
-      };
-      this.fire(statusCode, message);
-      return;
-    }
-
-    if (
-      typeof args[0]?.statusCode === 'number' &&
-      typeof args[0]?.code === 'string'
-    ) {
-      const error = args[0];
-      this._errorInfo = {
-        message: error.message,
-        type: error.constructor?.name ?? 'TejError',
-        devInsight: null,
-        stack: error.stack ?? null,
-        codeContext: null,
-      };
-      this.fire(error.statusCode, error.message);
-      return;
-    }
-
-    if (
-      args[0] != null &&
-      typeof args[0].message === 'string' &&
-      typeof args[0].stack === 'string'
-    ) {
-      const error = args[0];
-      if (!isNaN(parseInt(error.message))) {
-        const statusCode = parseInt(error.message);
-        const message = toStatusMessage(statusCode) || toStatusMessage(500);
+    // Sync mode (default): run LLM, then fire.
+    return captureCodeContext(stack)
+      .then((codeContext) => {
+        const context = {
+          codeContext,
+          method: this.method,
+          path: this.path,
+          includeDevInsight: true,
+          ...(throwOpts?.messageType && { messageType: throwOpts.messageType }),
+        };
+        if (originalError !== undefined) context.error = originalError;
+        return inferErrorFromContext(context).then((result) => ({
+          result,
+          codeContext,
+        }));
+      })
+      .then(({ result, codeContext }) => {
+        const devInsight = result.devInsight ?? null;
+        const finalStatus = resolved.explicit ? statusCode : result.statusCode;
+        const finalMessage = resolved.explicit ? message : result.message;
+        this._errorInfo = {
+          message: finalMessage,
+          type: errorType,
+          devInsight,
+          stack: stack ?? null,
+          codeContext: codeContext ?? null,
+        };
+        const isProduction = process.env.NODE_ENV === 'production';
+        const data =
+          !isProduction && devInsight
+            ? { message: finalMessage, _dev: devInsight }
+            : finalMessage;
+        this.fire(finalStatus, data);
+      })
+      .catch((err) => {
+        logger.warn(`LLM error inference failed: ${err?.message ?? err}`);
         this._errorInfo = {
           message,
-          type: error.constructor.name,
+          type: errorType,
           devInsight: null,
-          stack: error.stack ?? null,
+          stack: resolved.stack,
           codeContext: null,
         };
         this.fire(statusCode, message);
-        return;
-      }
-      const statusCode = toStatusCode(error.message);
-      if (statusCode) {
-        this._errorInfo = {
-          message: error.message,
-          type: error.constructor.name,
-          devInsight: null,
-          stack: error.stack ?? null,
-          codeContext: null,
-        };
-        this.fire(statusCode, error.message);
-        return;
-      }
-      this._errorInfo = {
-        message: error.message,
-        type: error.constructor.name,
-        devInsight: null,
-        stack: error.stack ?? null,
-        codeContext: null,
-      };
-      this.fire(500, error.message);
-      return;
-    }
-
-    const errorValue = args[0];
-    const statusCode = toStatusCode(errorValue);
-    if (statusCode) {
-      this._errorInfo = {
-        message: toStatusMessage(statusCode),
-        type: null,
-        devInsight: null,
-        stack: null,
-        codeContext: null,
-      };
-      this.fire(statusCode, toStatusMessage(statusCode));
-      return;
-    }
-    this._errorInfo = {
-      message: errorValue.toString(),
-      type: null,
-      devInsight: null,
-      stack: null,
-      codeContext: null,
-    };
-    this.fire(500, errorValue.toString());
+      });
   }
 }
 
