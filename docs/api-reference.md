@@ -70,7 +70,7 @@ app.withRateLimit({
 
 #### serveDocs(config)
 
-Serve an interactive API documentation UI (Scalar) from a pre-generated OpenAPI spec.
+Serve an interactive API documentation UI (Scalar) from a pre-generated OpenAPI spec. Optionally password-protected.
 
 ```javascript
 app.serveDocs({
@@ -79,12 +79,13 @@ app.serveDocs({
 });
 ```
 
-| Option         | Type   | Default            | Description                     |
-| -------------- | ------ | ------------------ | ------------------------------- |
-| `specPath`     | string | `'./openapi.json'` | Path to the OpenAPI spec file   |
-| `scalarConfig` | object | _(defaults)_       | Scalar UI configuration options |
+| Option         | Type   | Default             | Description                                                                         |
+| -------------- | ------ | ------------------- | ----------------------------------------------------------------------------------- |
+| `specPath`     | string | `'./openapi.json'`  | Path to the OpenAPI spec file                                                       |
+| `password`     | string | `DOCS_PASSWORD` env | Password to protect docs behind a login form. Falls back to `DOCS_PASSWORD` env var |
+| `scalarConfig` | object | _(defaults)_        | Scalar UI configuration options                                                     |
 
-Registers `GET /docs` (HTML UI) and `GET /docs/openapi.json` (spec JSON).
+Registers `GET /docs` (HTML UI) and `GET /docs/openapi.json` (spec JSON). In production (or when `NODE_ENV` is unset), docs are **disabled** unless a password is configured. In development, docs are open by default. When a password is set, unauthenticated visitors see a login form.
 
 **Returns:** `Tejas` (for chaining)
 

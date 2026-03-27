@@ -161,6 +161,12 @@ app.takeoff();
 // Visit http://localhost:1403/docs
 ```
 
+Docs are disabled in production by default. Set `DOCS_PASSWORD` to enable protected access:
+
+```bash
+DOCS_PASSWORD=my-secret
+```
+
 ## Documentation
 
 For comprehensive documentation, see the [docs folder](./docs) or visit [tejas-documentation.vercel.app](https://usetejas.com).
