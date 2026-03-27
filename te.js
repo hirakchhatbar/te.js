@@ -381,7 +381,8 @@ class Tejas {
    * The project name is auto-detected from `package.json` if not supplied.
    *
    * @param {Object} [config] - Radar configuration
-   * @param {string} [config.collectorUrl]  Collector base URL (default: RADAR_COLLECTOR_URL env or https://collector.usetejas.com)
+   * @param {string} [config.collectorUrl]  Collector base URL (default: RADAR_COLLECTOR_URL env or https://collector.usetejas.com).
+   *                                         A future release will support self-hosted Radar collectors.
    * @param {string} [config.apiKey]        Bearer token `rdr_xxx` (default: RADAR_API_KEY env)
    * @param {string} [config.projectName]   Project identifier (default: RADAR_PROJECT_NAME env → package.json name → "tejas-app")
    * @param {number} [config.flushInterval] Milliseconds between periodic flushes (default: 2000)

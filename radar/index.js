@@ -127,6 +127,7 @@ function capJsonBlob(value) {
  *                                            Defaults to gzip-compressed HTTP POST to the collector.
  * @param {string[]} [config.ignore]         Request paths to skip (default ['/health']).
  * @param {string} [config.collectorUrl]     Radar collector URL. Falls back to RADAR_COLLECTOR_URL env, then "https://collector.usetejas.com".
+ *                                            A future release will support self-hosted Radar collectors.
  * @param {Object}  [config.capture]         Controls what additional data is captured beyond metrics.
  * @param {boolean} [config.capture.request]          Capture and send request body (default false).
  * @param {boolean} [config.capture.response]         Capture and send response body (default false).
