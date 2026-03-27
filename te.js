@@ -468,11 +468,13 @@ class Tejas {
    * @param {Object} [config] - Configuration
    * @param {string} [config.specPath='./openapi.json'] - Path to the OpenAPI spec JSON file (relative to process.cwd())
    * @param {object} [config.scalarConfig] - Optional Scalar API Reference config (e.g. { layout: 'modern' } for dialog try-it)
+   * @param {string} [config.password] - Optional password to protect docs. Falls back to DOCS_PASSWORD env var. When set, visitors must authenticate via a login form.
    * @returns {Tejas} The Tejas instance for chaining
    *
    * @example
    * app.serveDocs({ specPath: './openapi.json' });
    * app.serveDocs({ specPath: './openapi.json', scalarConfig: { layout: 'modern' } });
+   * app.serveDocs({ password: process.env.DOCS_PASSWORD });
    * app.takeoff();
    */
   serveDocs(config = {}) {
@@ -481,12 +483,13 @@ class Tejas {
       config.specPath || './openapi.json',
     );
     const { scalarConfig } = config;
+    const password = config.password ?? process.env.DOCS_PASSWORD ?? null;
     const getSpec = async () => {
       const content = await readFile(specPath, 'utf8');
       return JSON.parse(content);
     };
     registerDocRoutes(
-      { getSpec, specUrl: '/docs/openapi.json', scalarConfig },
+      { getSpec, specUrl: '/docs/openapi.json', scalarConfig, password },
       targetRegistry,
     );
     return this;

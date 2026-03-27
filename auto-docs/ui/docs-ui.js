@@ -9,6 +9,32 @@
 
 import Endpoint from '../../server/endpoint.js';
 import targetRegistry from '../../server/targets/registry.js';
+import {
+  isAuthenticated,
+  setAuthCookie,
+  verifyPassword,
+  buildLoginPage,
+  buildSetupPage,
+  requiresPasswordForEnv,
+} from './docs-auth.js';
+
+/**
+ * Write an HTML response directly, bypassing ammo.fire so the response
+ * envelope (when enabled) does not wrap the HTML in JSON.
+ */
+function sendHtml(res, statusCode, html) {
+  res.writeHead(statusCode, { 'Content-Type': 'text/html' });
+  res.end(html);
+}
+
+/**
+ * Write a JSON response directly, bypassing ammo.fire so the response
+ * envelope does not wrap internal docs responses.
+ */
+function sendJson(res, statusCode, data) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
 
 /** Scalar API Reference browser standalone (IIFE, sets window.Scalar). Pinned for stability. */
 const SCALAR_VERSION = '1.46.0';
@@ -98,38 +124,98 @@ function buildDocsPage(specUrl, scalarConfig = {}) {
 
 /**
  * Create endpoint that serves the docs HTML page at GET docsPath.
+ *
+ * Three modes:
+ * - **password set** → login form for unauthenticated visitors, POST to verify
+ * - **no password, production/missing NODE_ENV** → setup page urging developer to set DOCS_PASSWORD
+ * - **no password, development** → open access
+ *
  * @param {string} docsPath - e.g. '/docs'
  * @param {string} htmlContent - Full HTML document
+ * @param {string|null} [password] - Optional password to protect docs
  * @returns {Endpoint}
  */
-function createDocsHtmlEndpoint(docsPath, htmlContent) {
+function createDocsHtmlEndpoint(docsPath, htmlContent, password) {
   const endpoint = new Endpoint();
   endpoint.setPath('', docsPath);
   endpoint.setMiddlewares([]);
+
+  if (password) {
+    const loginPage = buildLoginPage();
+    const loginError = buildLoginPage('Incorrect password');
+
+    endpoint.setHandler((ammo) => {
+      if (!ammo.GET && !ammo.POST) return ammo.notAllowed('GET', 'POST');
+
+      if (ammo.POST) {
+        if (verifyPassword(ammo.payload?.password, password)) {
+          setAuthCookie(ammo.res, password);
+          return ammo.redirect(docsPath);
+        }
+        sendHtml(ammo.res, 401, loginError);
+        return;
+      }
+
+      if (isAuthenticated(ammo.headers, password)) {
+        sendHtml(ammo.res, 200, htmlContent);
+      } else {
+        sendHtml(ammo.res, 200, loginPage);
+      }
+    });
+    return endpoint;
+  }
+
+  if (requiresPasswordForEnv()) {
+    const setupPage = buildSetupPage();
+    endpoint.setHandler((ammo) => {
+      if (!ammo.GET) return ammo.notAllowed();
+      sendHtml(ammo.res, 403, setupPage);
+    });
+    return endpoint;
+  }
+
   endpoint.setHandler((ammo) => {
     if (!ammo.GET) return ammo.notAllowed();
-    ammo.fire(200, htmlContent, 'text/html');
+    sendHtml(ammo.res, 200, htmlContent);
   });
   return endpoint;
 }
 
 /**
  * Create endpoint that serves the OpenAPI spec JSON at GET specPath.
+ * Returns 401 for unauthenticated requests when a password is set,
+ * or 403 when docs are disabled (production without DOCS_PASSWORD).
  * @param {string} specPath - e.g. '/docs/openapi.json'
  * @param {() => object | Promise<object>} getSpec - Function that returns the current spec
+ * @param {string|null} [password] - Optional password to protect docs
  * @returns {Endpoint}
  */
-function createSpecJsonEndpoint(specPath, getSpec) {
+function createSpecJsonEndpoint(specPath, getSpec, password) {
   const endpoint = new Endpoint();
   endpoint.setPath('', specPath);
   endpoint.setMiddlewares([]);
+
+  if (!password && requiresPasswordForEnv()) {
+    endpoint.setHandler((ammo) => {
+      if (!ammo.GET) return ammo.notAllowed();
+      sendJson(ammo.res, 403, {
+        error: 'Docs disabled. Set the DOCS_PASSWORD environment variable.',
+      });
+    });
+    return endpoint;
+  }
+
   endpoint.setHandler(async (ammo) => {
     if (!ammo.GET) return ammo.notAllowed();
+    if (password && !isAuthenticated(ammo.headers, password)) {
+      sendJson(ammo.res, 401, { error: 'Unauthorized' });
+      return;
+    }
     try {
       const spec = await Promise.resolve(getSpec());
-      ammo.fire(200, spec);
+      sendJson(ammo.res, 200, spec);
     } catch (err) {
-      ammo.fire(500, {
+      sendJson(ammo.res, 500, {
         error: 'Failed to generate OpenAPI spec',
         message: err?.message,
       });
@@ -147,6 +233,7 @@ function createSpecJsonEndpoint(specPath, getSpec) {
  * @param {string} [options.docsPath='/docs'] - Base path for docs (HTML page and spec URL). Routes: GET {docsPath}, GET {docsPath}/openapi.json.
  * @param {string} [options.specUrl] - Override for the spec URL shown in the docs page (default: '{docsPath}/openapi.json'). Use when serving behind a proxy with a different base path.
  * @param {object} [options.scalarConfig] - Optional Scalar API Reference config (e.g. { layout: 'classic' } for try-it on the same page).
+ * @param {string|null} [options.password] - Optional password to protect docs behind a login form. When set, unauthenticated visitors see a password prompt.
  * @param {boolean} [options.mutateRegistry=true] - If true, push endpoints to registry. If false, return [docsEndpoint, specEndpoint] without mutating.
  * @param {object} [registry] - Target registry to register routes on when mutateRegistry is true. Defaults to the module's targetRegistry.
  * @returns {undefined | [Endpoint, Endpoint]} When mutateRegistry is false, returns the two endpoints for the caller to register.
@@ -157,6 +244,7 @@ export function registerDocRoutes(options = {}, registry = targetRegistry) {
     docsPath = '/docs',
     specUrl: specUrlOption,
     scalarConfig,
+    password = null,
     mutateRegistry = true,
   } = options;
 
@@ -171,8 +259,8 @@ export function registerDocRoutes(options = {}, registry = targetRegistry) {
   const specPath = `${basePath}/openapi.json`;
   const htmlContent = buildDocsPage(specUrl, scalarConfig);
 
-  const docsEndpoint = createDocsHtmlEndpoint(docsPath, htmlContent);
-  const specEndpoint = createSpecJsonEndpoint(specPath, getSpec);
+  const docsEndpoint = createDocsHtmlEndpoint(docsPath, htmlContent, password);
+  const specEndpoint = createSpecJsonEndpoint(specPath, getSpec, password);
 
   if (mutateRegistry) {
     registry.targets.push(docsEndpoint);

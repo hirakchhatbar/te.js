@@ -32,11 +32,11 @@ Target files → Handler analysis → LLM enhancement → OpenAPI 3.0 spec → S
 
 The `level` option controls how much context the LLM receives and how much work it does:
 
-| Level | Name | Context Sent to LLM | Output |
-|-------|------|---------------------|--------|
-| **1** | Moderate | Handler source code only (~hundreds of tokens per endpoint) | Summaries, schemas, tags |
-| **2** | High | Handler + full dependency chain from imports (~thousands of tokens per endpoint) | More accurate schemas and descriptions |
-| **3** | Comprehensive | Same as level 2, plus post-processing | Everything from level 2, plus: reordered tags by importance, `API_OVERVIEW.md` page |
+| Level | Name          | Context Sent to LLM                                                              | Output                                                                              |
+| ----- | ------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **1** | Moderate      | Handler source code only (~hundreds of tokens per endpoint)                      | Summaries, schemas, tags                                                            |
+| **2** | High          | Handler + full dependency chain from imports (~thousands of tokens per endpoint) | More accurate schemas and descriptions                                              |
+| **3** | Comprehensive | Same as level 2, plus post-processing                                            | Everything from level 2, plus: reordered tags by importance, `API_OVERVIEW.md` page |
 
 Higher levels produce better documentation but use more LLM tokens.
 
@@ -47,24 +47,28 @@ You can provide explicit metadata when registering endpoints. This metadata is u
 ```javascript
 const users = new Target('/users');
 
-users.register('/', {
-  summary: 'User operations',
-  description: 'Create and list users',
-  methods: ['GET', 'POST'],
-  request: {
-    name: { type: 'string', required: true },
-    email: { type: 'string', required: true }
+users.register(
+  '/',
+  {
+    summary: 'User operations',
+    description: 'Create and list users',
+    methods: ['GET', 'POST'],
+    request: {
+      name: { type: 'string', required: true },
+      email: { type: 'string', required: true },
+    },
+    response: {
+      200: { description: 'Success' },
+      201: { description: 'User created' },
+      400: { description: 'Validation error' },
+    },
   },
-  response: {
-    200: { description: 'Success' },
-    201: { description: 'User created' },
-    400: { description: 'Validation error' }
-  }
-}, (ammo) => {
-  if (ammo.GET) return ammo.fire(userService.list());
-  if (ammo.POST) return ammo.fire(201, userService.create(ammo.payload));
-  ammo.notAllowed();
-});
+  (ammo) => {
+    if (ammo.GET) return ammo.fire(userService.list());
+    if (ammo.POST) return ammo.fire(201, userService.create(ammo.payload));
+    ammo.notAllowed();
+  },
+);
 ```
 
 The metadata object is optional. When omitted, the LLM infers everything from the handler source.
@@ -134,17 +138,17 @@ All options live under the `docs` key in `tejas.config.json`:
 }
 ```
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `dirTargets` | string | `"targets"` | Directory containing `.target.js` files |
-| `output` | string | `"./openapi.json"` | Output file path for the generated spec |
-| `title` | string | `"API"` | API title in the OpenAPI `info` block |
-| `version` | string | `"1.0.0"` | API version in the OpenAPI `info` block |
-| `description` | string | `""` | API description |
-| `level` | number | `1` | Enhancement level (1–3) |
-| `llm` | object | — | LLM provider configuration (see above) |
-| `overviewPath` | string | `"./API_OVERVIEW.md"` | Path for the generated overview page (level 3 only) |
-| `productionBranch` | string | `"main"` | Branch that triggers `docs:on-push` |
+| Key                | Type   | Default               | Description                                         |
+| ------------------ | ------ | --------------------- | --------------------------------------------------- |
+| `dirTargets`       | string | `"targets"`           | Directory containing `.target.js` files             |
+| `output`           | string | `"./openapi.json"`    | Output file path for the generated spec             |
+| `title`            | string | `"API"`               | API title in the OpenAPI `info` block               |
+| `version`          | string | `"1.0.0"`             | API version in the OpenAPI `info` block             |
+| `description`      | string | `""`                  | API description                                     |
+| `level`            | number | `1`                   | Enhancement level (1–3)                             |
+| `llm`              | object | —                     | LLM provider configuration (see above)              |
+| `overviewPath`     | string | `"./API_OVERVIEW.md"` | Path for the generated overview page (level 3 only) |
+| `productionBranch` | string | `"main"`              | Branch that triggers `docs:on-push`                 |
 
 ## Serving API Docs
 
@@ -162,34 +166,71 @@ app.takeoff();
 
 This registers two routes:
 
-| Route | Description |
-|-------|-------------|
-| `GET /docs` | Interactive Scalar API reference UI |
-| `GET /docs/openapi.json` | Raw OpenAPI spec JSON |
+| Route                    | Description                         |
+| ------------------------ | ----------------------------------- |
+| `GET /docs`              | Interactive Scalar API reference UI |
+| `GET /docs/openapi.json` | Raw OpenAPI spec JSON               |
 
 ### serveDocs Options
 
 ```javascript
 app.serveDocs({
-  specPath: './openapi.json',   // Path to the spec file (relative to cwd)
-  scalarConfig: {               // Scalar UI configuration
-    layout: 'modern',          // 'modern' or 'classic'
+  specPath: './openapi.json', // Path to the spec file (relative to cwd)
+  password: 'my-secret', // Optional: protect docs with a password
+  scalarConfig: {
+    // Scalar UI configuration
+    layout: 'modern', // 'modern' or 'classic'
     theme: 'default',
     showSidebar: true,
-    hideTestRequestButton: false
-  }
+    hideTestRequestButton: false,
+  },
 });
 ```
 
+| Option         | Type   | Default             | Description                                                                           |
+| -------------- | ------ | ------------------- | ------------------------------------------------------------------------------------- |
+| `specPath`     | string | `'./openapi.json'`  | Path to the OpenAPI spec file (relative to cwd)                                       |
+| `password`     | string | `DOCS_PASSWORD` env | Password to protect docs. Falls back to `DOCS_PASSWORD` env var. Omit for open access |
+| `scalarConfig` | object | _(defaults)_        | Scalar UI configuration options                                                       |
+
 See the [Scalar configuration reference](https://scalar.com/products/api-references/configuration) for all available UI options.
+
+### Password Protection
+
+API docs reveal your entire endpoint surface — every route, parameter, and response schema. Tejas protects you by default:
+
+**In production** (or when `NODE_ENV` is not set), docs are **disabled** unless a password is configured. Visitors see a setup page directing them to set `DOCS_PASSWORD`.
+
+**In development** (`NODE_ENV=development`), docs are open without a password for convenience.
+
+To enable docs in production, set the `DOCS_PASSWORD` environment variable:
+
+```bash
+DOCS_PASSWORD=my-secret
+```
+
+That's it — no code changes required. When the env var is set, visitors to `/docs` see a password form. After entering the correct password, a cookie-based session grants access for 7 days. Both `/docs` and `/docs/openapi.json` are protected.
+
+You can also pass the password explicitly:
+
+```javascript
+app.serveDocs({ password: process.env.DOCS_PASSWORD });
+```
+
+| Environment        | Password Set | Behavior                             |
+| ------------------ | ------------ | ------------------------------------ |
+| development        | No           | Docs open (no auth)                  |
+| development        | Yes          | Login form required                  |
+| production / unset | No           | **Docs disabled** (setup page shown) |
+| production / unset | Yes          | Login form required                  |
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `tejas generate:docs` | Interactive OpenAPI generation |
-| `tejas generate:docs --ci` | Non-interactive mode (for CI/CD) |
-| `tejas docs:on-push` | Generate docs when pushing to production branch |
+| Command                    | Description                                     |
+| -------------------------- | ----------------------------------------------- |
+| `tejas generate:docs`      | Interactive OpenAPI generation                  |
+| `tejas generate:docs --ci` | Non-interactive mode (for CI/CD)                |
+| `tejas docs:on-push`       | Generate docs when pushing to production branch |
 
 See the [CLI Reference](./cli.md) for full details.
 
@@ -213,4 +254,3 @@ npx tejas generate:docs
 - [CLI Reference](./cli.md) — Detailed CLI command documentation
 - [Configuration](./configuration.md) — Full framework configuration reference
 - [Routing](./routing.md) — Learn about endpoint metadata
-
