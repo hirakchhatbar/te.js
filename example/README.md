@@ -136,4 +136,4 @@ For CI pipelines, run:
 npx tejas generate:docs --ci
 ```
 
-See [te.js documentation](https://tejas-documentation.vercel.app) for more.
+See [te.js documentation](https://usetejas.com) for more.

@@ -405,6 +405,13 @@ class Tejas {
    *   allowlist of specific header names to send (e.g. `['content-type', 'x-request-id']`).
    *   The collector always strips sensitive headers (`authorization`, `cookie`,
    *   `set-cookie`, `x-api-key`, etc.) server-side regardless of what is sent.
+   * @param {boolean} [config.capture.logs=false]
+   *   Forward TejLogger calls to the Radar collector as application-level log
+   *   events. Logs are automatically correlated with the current trace when
+   *   emitted inside a request context.
+   * @param {string[]} [config.capture.logLevels]
+   *   When `capture.logs` is true, only forward these levels to the collector
+   *   (e.g. `['warn', 'error']`). Defaults to all levels when omitted.
    *
    * @param {Object}   [config.mask]        Client-side masking applied to request/response bodies
    *                                         before data is sent to the collector.

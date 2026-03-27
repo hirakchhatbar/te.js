@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://tejas-documentation.vercel.app/tejas-logo.svg" alt="Tejas Logo" width="200">
+  <img src="https://usetejas.com/tejas-logo.svg" alt="Tejas Logo" width="200">
 </p>
 
 <h1 align="center">Tejas</h1>
@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://tejas-documentation.vercel.app">Documentation</a> •
+  <a href="https://usetejas.com">Documentation</a> •
   <a href="#ai-assisted-setup-mcp">AI Setup (MCP)</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#features">Features</a> •
@@ -163,7 +163,7 @@ app.takeoff();
 
 ## Documentation
 
-For comprehensive documentation, see the [docs folder](./docs) or visit [tejas-documentation.vercel.app](https://tejas-documentation.vercel.app).
+For comprehensive documentation, see the [docs folder](./docs) or visit [tejas-documentation.vercel.app](https://usetejas.com).
 
 - [Getting Started](./docs/getting-started.md) — Installation and quick start
 - [Configuration](./docs/configuration.md) — All configuration options
