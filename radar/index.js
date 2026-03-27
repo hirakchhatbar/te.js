@@ -126,7 +126,7 @@ function capJsonBlob(value) {
  * @param {Function} [config.transport]      Custom transport `(events) => Promise<{ok, status}>`.
  *                                            Defaults to gzip-compressed HTTP POST to the collector.
  * @param {string[]} [config.ignore]         Request paths to skip (default ['/health']).
- * @param {string} [config.collectorUrl]     Radar collector URL. Falls back to RADAR_COLLECTOR_URL env, then "http://localhost:3100".
+ * @param {string} [config.collectorUrl]     Radar collector URL. Falls back to RADAR_COLLECTOR_URL env, then "https://collector.usetejas.com".
  * @param {Object}  [config.capture]         Controls what additional data is captured beyond metrics.
  * @param {boolean} [config.capture.request]          Capture and send request body (default false).
  * @param {boolean} [config.capture.response]         Capture and send response body (default false).
@@ -148,7 +148,7 @@ async function radarMiddleware(config = {}) {
   const collectorUrl =
     config.collectorUrl ??
     process.env.RADAR_COLLECTOR_URL ??
-    'http://localhost:3100';
+    'https://collector.usetejas.com';
 
   const apiKey = config.apiKey ?? process.env.RADAR_API_KEY ?? null;
 
