@@ -220,7 +220,7 @@ describe('Radar Middleware', () => {
 
       const mw = await radarMiddleware({
         apiKey: 'rdr_test',
-        batchSize: 2,
+        batchSize: 3,
         flushInterval: 60_000,
         transport,
       });
@@ -234,11 +234,12 @@ describe('Radar Middleware', () => {
 
       await new Promise((r) => setTimeout(r, 100));
 
-      expect(capturedEvents).toHaveLength(2);
+      expect(capturedEvents).toHaveLength(3);
       expect(capturedEvents[0].type).toBe('log');
       expect(capturedEvents[1].type).toBe('error');
       expect(capturedEvents[1].fingerprint).toBeTruthy();
       expect(capturedEvents[1].message).toBe('Internal error');
+      expect(capturedEvents[2].type).toBe('span');
     });
   });
 
