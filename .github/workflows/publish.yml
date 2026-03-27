@@ -6,28 +6,44 @@ on:
   pull_request:
     types: [closed]
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.merged == true
     permissions:
       contents: write
     steps:
-      - name: Check version label
+      - name: Determine version bump
         id: version-label
         run: |
-          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
-          if echo "$LABELS" | grep -qE '"(patch|minor|major)"'; then
-            if echo "$LABELS" | grep -q '"major"'; then
-              echo "bump=major" >> $GITHUB_OUTPUT
-            elif echo "$LABELS" | grep -q '"minor"'; then
-              echo "bump=minor" >> $GITHUB_OUTPUT
-            else
-              echo "bump=patch" >> $GITHUB_OUTPUT
-            fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "bump=${{ inputs.bump }}" >> $GITHUB_OUTPUT
           else
-            echo "bump=" >> $GITHUB_OUTPUT
+            LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+            if echo "$LABELS" | grep -qE '"(patch|minor|major)"'; then
+              if echo "$LABELS" | grep -q '"major"'; then
+                echo "bump=major" >> $GITHUB_OUTPUT
+              elif echo "$LABELS" | grep -q '"minor"'; then
+                echo "bump=minor" >> $GITHUB_OUTPUT
+              else
+                echo "bump=patch" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "bump=" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Checkout
