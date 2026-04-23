@@ -1,6 +1,6 @@
 {
   "name": "te.js",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "AI Native Node.js Framework",
   "type": "module",
   "main": "te.js",
