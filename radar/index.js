@@ -134,10 +134,15 @@ function capJsonBlob(value) {
  * @param {boolean|string[]} [config.capture.headers] Capture request headers. `true` sends all headers;
  *                                                     a `string[]` sends only the named headers (allowlist);
  *                                                     `false` (default) sends nothing.
- * @param {boolean} [config.capture.logs=false]        Forward TejLogger calls to the collector as app-level
- *                                                     log events. Off by default.
- * @param {string[]} [config.capture.logLevels]        When `capture.logs` is true, only forward these levels
- *                                                     (e.g. `['warn', 'error']`). Defaults to all levels.
+ * @param {boolean|'explicit'} [config.capture.logs=false]
+ *   Forward TejLogger calls to the collector as app-level log events.
+ *   `false` (default) — off. `true` — all logs (subject to logLevels).
+ *   `'explicit'` — only logs from instances / calls with `{ radar: true }`.
+ *   Precedence: per-call metadata.radar > instance defaults.radar > this mode.
+ *   Explicit `radar: true` bypasses the logLevels filter.
+ * @param {string[]} [config.capture.logLevels]        When `capture.logs` is `true`, only forward these
+ *                                                     levels on the implicit path (e.g. `['warn', 'error']`).
+ *                                                     Bypassed when a log opts in via `{ radar: true }`.
  * @param {Object}   [config.mask]           Client-side masking applied before data is sent.
  * @param {string[]} [config.mask.fields]    Extra field names to mask in request/response bodies.
  *                                            These are merged with the collector's server-side GDPR blocklist.
@@ -164,11 +169,24 @@ async function radarMiddleware(config = {}) {
   const maxQueueSize = config.maxQueueSize ?? 10_000;
   const ignorePaths = new Set(config.ignore ?? ['/health']);
 
+  const rawLogsMode = config.capture?.logs;
+  let logsMode;
+  if (rawLogsMode === true) logsMode = 'all';
+  else if (rawLogsMode === 'explicit') logsMode = 'explicit';
+  else if (rawLogsMode && rawLogsMode !== false) {
+    logger.warn(
+      `Invalid capture.logs value "${rawLogsMode}" — expected true, false, or 'explicit'. Defaulting to off.`,
+    );
+    logsMode = 'off';
+  } else {
+    logsMode = 'off';
+  }
+
   const capture = Object.freeze({
     request: config.capture?.request === true,
     response: config.capture?.response === true,
     headers: config.capture?.headers ?? false,
-    logs: config.capture?.logs === true,
+    logs: logsMode,
     logLevels: config.capture?.logLevels ?? null,
   });
 
@@ -302,9 +320,34 @@ async function radarMiddleware(config = {}) {
 
   const captureLevels = capture.logLevels ? new Set(capture.logLevels) : null;
 
-  if (capture.logs) {
+  const logStats = {
+    emitted: 0,
+    droppedByMode: 0,
+    droppedByLevel: 0,
+    droppedByFlag: 0,
+  };
+
+  if (capture.logs !== 'off') {
     TejLogger.addHook(({ level, identifier, message, metadata }) => {
-      if (captureLevels && !captureLevels.has(level)) return;
+      const radarFlag =
+        metadata != null && typeof metadata === 'object'
+          ? metadata.radar
+          : undefined;
+
+      if (radarFlag === false) {
+        logStats.droppedByFlag++;
+        return;
+      }
+
+      if (radarFlag === true) {
+        // Explicit opt-in bypasses logLevels
+      } else if (capture.logs === 'explicit') {
+        logStats.droppedByMode++;
+        return;
+      } else if (captureLevels && !captureLevels.has(level)) {
+        logStats.droppedByLevel++;
+        return;
+      }
 
       const store = traceStore.getStore();
       const traceId = store?.traceId ?? null;
@@ -326,6 +369,7 @@ async function radarMiddleware(config = {}) {
 
       if (batch.length >= maxQueueSize) batch.splice(0, 1);
       batch.push(event);
+      logStats.emitted++;
       if (batch.length >= batchSize) flush();
     });
   }
@@ -454,6 +498,7 @@ async function radarMiddleware(config = {}) {
   }
 
   radarCapture._radarStatus = radarStatus;
+  radarCapture.stats = () => Object.freeze({ ...logStats });
   return radarCapture;
 }
 

@@ -406,13 +406,32 @@ class Tejas {
    *   allowlist of specific header names to send (e.g. `['content-type', 'x-request-id']`).
    *   The collector always strips sensitive headers (`authorization`, `cookie`,
    *   `set-cookie`, `x-api-key`, etc.) server-side regardless of what is sent.
-   * @param {boolean} [config.capture.logs=false]
+   * @param {boolean|'explicit'} [config.capture.logs=false]
    *   Forward TejLogger calls to the Radar collector as application-level log
    *   events. Logs are automatically correlated with the current trace when
    *   emitted inside a request context.
+   *
+   *   Three modes:
+   *   - `false` (default) — hook is never registered; zero overhead.
+   *   - `true` — all logs are forwarded (subject to `logLevels`). Instance or
+   *     per-call `{ radar: false }` can opt individual logs out.
+   *   - `'explicit'` — nothing is forwarded unless the TejLogger instance was
+   *     created with `{ radar: true }` or the individual call passes
+   *     `{ radar: true }` in metadata. Use this to keep third-party / noisy
+   *     loggers off Radar while forwarding your own.
+   *
+   *   Precedence (most specific wins):
+   *   `per-call metadata.radar > instance defaults.radar > this global mode`
+   *
+   *   When the decision is made via an explicit `radar: true` (at instance or
+   *   per-call level), the `logLevels` filter is bypassed — the developer has
+   *   made an informed choice.
+   *
    * @param {string[]} [config.capture.logLevels]
-   *   When `capture.logs` is true, only forward these levels to the collector
-   *   (e.g. `['warn', 'error']`). Defaults to all levels when omitted.
+   *   When `capture.logs` is `true`, only forward these levels to the collector
+   *   on the implicit path (e.g. `['warn', 'error']`). Defaults to all levels
+   *   when omitted. Bypassed when a log is explicitly opted in via
+   *   `{ radar: true }` at the instance or per-call level.
    *
    * @param {Object}   [config.mask]        Client-side masking applied to request/response bodies
    *                                         before data is sent to the collector.
@@ -450,14 +469,43 @@ class Tejas {
    *     fields: ['account_number', 'internal_id'],
    *   },
    * });
+   *
+   * @example
+   * // Explicit mode: only loggers that opt in reach Radar.
+   * await app.withRadar({
+   *   apiKey: process.env.RADAR_API_KEY,
+   *   capture: { logs: 'explicit' },
+   * });
+   *
+   * // Instance opt-in — all calls from this logger go to Radar:
+   * const billing = new TejLogger('Billing', { radar: true });
+   * billing.info('Invoice created');          // → forwarded
+   *
+   * // Per-call opt-out overrides instance default:
+   * billing.debug('verbose detail', { radar: false }); // → not forwarded
+   *
+   * // Logger without opt-in stays off Radar:
+   * const cache = new TejLogger('Cache');
+   * cache.info('hit');                        // → not forwarded
    */
   async withRadar(config = {}) {
     const mw = await radarMiddleware(config);
     if (mw._radarStatus) {
       this._radarStatus = mw._radarStatus;
     }
+    this._radarMw = mw;
     this.midair(mw);
     return this;
+  }
+
+  /**
+   * Returns a snapshot of Radar log-forwarding counters for diagnostics.
+   *
+   * @returns {{ emitted: number, droppedByMode: number, droppedByLevel: number, droppedByFlag: number } | null}
+   *   `null` when Radar is not enabled or `withRadar` has not been called.
+   */
+  radarStats() {
+    return this._radarMw?.stats?.() ?? null;
   }
 
   /**

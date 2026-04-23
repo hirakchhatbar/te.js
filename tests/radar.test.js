@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
+import TejLogger from 'tej-logger';
 
 // We test the internal helpers by importing the module and exercising the
 // middleware factory with a mock transport.
@@ -250,6 +251,176 @@ describe('Radar Middleware', () => {
       const next = vi.fn();
       mw({}, next);
       expect(next).toHaveBeenCalled();
+    });
+  });
+
+  describe('log forwarding precedence', () => {
+    // Helper: create middleware with capture.logs config, emit a log via
+    // a TejLogger instance, wait for hook to fire, return stats.
+    async function setupAndLog({
+      logsMode,
+      logLevels,
+      loggerOpts,
+      callMeta,
+      level = 'info',
+    }) {
+      const transport = vi.fn(async () => ({ ok: true, status: 200 }));
+      const captureConfig = { logs: logsMode };
+      if (logLevels) captureConfig.logLevels = logLevels;
+
+      const mw = await radarMiddleware({
+        apiKey: 'rdr_test',
+        batchSize: 50_000,
+        flushInterval: 60_000,
+        transport,
+        capture: captureConfig,
+      });
+
+      const testLogger = new TejLogger('Test', loggerOpts);
+      testLogger[level]('test message', callMeta);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Remove the hook so it doesn't leak into subsequent tests
+      TejLogger.removeHook(TejLogger.removeHook);
+
+      return { stats: mw.stats(), transport };
+    }
+
+    it('global false → never forwarded', async () => {
+      const transport = vi.fn(async () => ({ ok: true, status: 200 }));
+      const mw = await radarMiddleware({
+        apiKey: 'rdr_test',
+        batchSize: 50_000,
+        flushInterval: 60_000,
+        transport,
+        capture: { logs: false },
+      });
+
+      const testLogger = new TejLogger('Off');
+      testLogger.info('ignored', { radar: true });
+      await new Promise((r) => setTimeout(r, 50));
+
+      const stats = mw.stats();
+      expect(stats.emitted).toBe(0);
+    });
+
+    it('global true + no overrides → forwarded (subject to logLevels)', async () => {
+      const { stats } = await setupAndLog({ logsMode: true });
+      expect(stats.emitted).toBe(1);
+    });
+
+    it('global true + logLevels excludes level → dropped by level', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: true,
+        logLevels: ['error'],
+        level: 'info',
+      });
+      expect(stats.droppedByLevel).toBe(1);
+      expect(stats.emitted).toBe(0);
+    });
+
+    it('global true + instance radar:false → not forwarded', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: true,
+        loggerOpts: { radar: false },
+      });
+      expect(stats.droppedByFlag).toBe(1);
+      expect(stats.emitted).toBe(0);
+    });
+
+    it('global true + instance radar:false + per-call radar:true → forwarded, bypasses logLevels', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: true,
+        logLevels: ['error'],
+        loggerOpts: { radar: false },
+        callMeta: { radar: true },
+        level: 'info',
+      });
+      expect(stats.emitted).toBe(1);
+      expect(stats.droppedByLevel).toBe(0);
+    });
+
+    it('global explicit + no overrides → not forwarded', async () => {
+      const { stats } = await setupAndLog({ logsMode: 'explicit' });
+      expect(stats.droppedByMode).toBe(1);
+      expect(stats.emitted).toBe(0);
+    });
+
+    it('global explicit + instance radar:true → forwarded (subject to logLevels)', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: 'explicit',
+        loggerOpts: { radar: true },
+      });
+      expect(stats.emitted).toBe(1);
+    });
+
+    it('global explicit + instance radar:true + logLevels excludes → dropped by level', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: 'explicit',
+        logLevels: ['error'],
+        loggerOpts: { radar: true },
+        level: 'info',
+      });
+      // Instance radar:true is not a per-call explicit; it flows through the
+      // metadata merge. But radar:true means "explicit opt-in" so it bypasses
+      // logLevels.
+      expect(stats.emitted).toBe(1);
+    });
+
+    it('global explicit + per-call radar:true → forwarded, bypasses logLevels', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: 'explicit',
+        logLevels: ['error'],
+        callMeta: { radar: true },
+        level: 'info',
+      });
+      expect(stats.emitted).toBe(1);
+    });
+
+    it('any mode + per-call radar:false → not forwarded', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: true,
+        callMeta: { radar: false },
+      });
+      expect(stats.droppedByFlag).toBe(1);
+    });
+
+    it('global explicit + instance radar:true + per-call radar:false → not forwarded', async () => {
+      const { stats } = await setupAndLog({
+        logsMode: 'explicit',
+        loggerOpts: { radar: true },
+        callMeta: { radar: false },
+      });
+      expect(stats.droppedByFlag).toBe(1);
+      expect(stats.emitted).toBe(0);
+    });
+  });
+
+  describe('stats counters', () => {
+    it('stats() returns a frozen snapshot', async () => {
+      const mw = await radarMiddleware({
+        apiKey: 'rdr_test',
+        batchSize: 50_000,
+        flushInterval: 60_000,
+        transport: vi.fn(async () => ({ ok: true, status: 200 })),
+        capture: { logs: true },
+      });
+
+      const stats = mw.stats();
+      expect(Object.isFrozen(stats)).toBe(true);
+      expect(stats).toEqual({
+        emitted: 0,
+        droppedByMode: 0,
+        droppedByLevel: 0,
+        droppedByFlag: 0,
+      });
+    });
+
+    it('stats() is null when radar is disabled (no API key)', async () => {
+      delete process.env.RADAR_API_KEY;
+      const mw = await radarMiddleware({});
+      expect(mw.stats).toBeUndefined();
     });
   });
 });
